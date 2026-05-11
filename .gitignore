@@ -1,0 +1,11 @@
+__pycache__/
+.pytest_cache/
+.DS_Store
+
+xju_thesis_md2docx_native/world-math/node_modules/
+example/*.generated.docx
+example/*.generated.pdf
+example/preview/
+
+*.bak
+*.docx.bak
