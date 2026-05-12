@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-python3 "$ROOT/xju_thesis_md2docx_native.py" \
+python3 "$ROOT/xju_thesis_md2docx.py" \
   "$ROOT/example/thesis-demo.md" \
   "$ROOT/example/thesis-demo.generated.docx"
 

@@ -37,7 +37,13 @@ bash tools/word-docx2pdf/docx2pdf.sh thesis.docx thesis.pdf
 结合本项目示例：
 
 ```bash
-python3 xju_thesis_md2docx_native.py example/thesis-demo.md example/thesis-demo.generated.docx
+python3 xju_thesis_md2docx.py example/thesis-demo.md example/thesis-demo.generated.docx
+bash tools/docx2pdf/docx2pdf.sh --backend word example/thesis-demo.generated.docx example/thesis-demo.generated.pdf
+```
+
+也可以直接调用本后端脚本：
+
+```bash
 bash tools/word-docx2pdf/docx2pdf.sh example/thesis-demo.generated.docx example/thesis-demo.generated.pdf
 ```
 

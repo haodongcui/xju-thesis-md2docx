@@ -1,69 +1,92 @@
-# xju-thesis-md2docx-native
+# xju-thesis-md2docx
 
-新疆大学本科毕业论文（设计）`Markdown -> DOCX` 原生版导出工具。
+新疆大学本科毕业论文（设计）`Markdown -> DOCX` 格式转换工具。
 
-这个项目从 `xju-thesis-md2docx` 迁移而来，但导出方式已经改变：它不再读取、复制、替换学校 Word 模板包，而是直接生成一个新的 OOXML `docx` 文件。这样更适合后续封装成独立开源项目，也方便继续扩展 Word、LibreOffice、PDF 预览等多后端流程。
+本项目面向希望用 Markdown 维护论文主稿、再导出为学校格式 Word 文档的写作流程。当前实现不依赖 Word 模板包替换，而是直接生成原生 OOXML `docx` 文件，并提供可选的 DOCX 转 PDF 后端，方便检查分页、目录、公式、图表和整体版式。
 
-## 功能概览
+## 功能
 
-- [x] 从 Markdown 主稿生成原生 OOXML DOCX
-- [x] 自动生成封面、声明、中英文摘要、目录域和正文
-- [x] 生成自有 Word 样式：正文、标题、题注、参考文献、代码块、公式块、表格文字
-- [x] 写入基础节属性、正文页眉和页脚页码
-- [x] 支持一级到三级标题、参考文献、致谢和附录
-- [x] 支持单图、并排图、Markdown 管道表格和长表拆分标记
-- [x] 支持 LaTeX 公式转 Word 原生 OMML；依赖缺失时保底写入 LaTeX 文本
-- [x] 支持 WSL + Windows Microsoft Word 导出 PDF 预览
+- 从 Markdown 主稿生成新疆大学本科毕业论文（设计）DOCX。
+- 自动生成封面、原创性声明、任务书、中英文摘要、目录域、正文、参考文献、致谢和附录。
+- 写入学校论文格式所需的页面边距、页眉页脚、页码、标题、正文、题注、表格、公式和参考文献样式。
+- 正文章节使用 Word 原生编号，不把章节号硬编码进标题文本。
+- 支持一级到三级标题、行内公式、块公式、Markdown 管道表格、长表拆分、单图、并排图、引用块和代码块。
+- 支持 LaTeX 公式转换为 Word 原生 OMML；依赖缺失时保留 LaTeX 文本并给出 warning。
+- 可选调用 Windows Microsoft Word 或 LibreOffice 将 DOCX 导出为 PDF，用于人工或 AI 预览排版效果。
 
-## 与模板版的区别
+## 适用范围
 
-模板版的核心思路是“拿学校 DOCX 模板作为底座，再替换其中的文档内容”。原生版的核心思路是“从零写入标准 DOCX 包结构”。
+适合：
 
-原生版会直接生成这些主要部件：
+- 新疆大学本科毕业论文（设计）正文写作和反复导出。
+- 希望把论文源文件纳入 Git 版本管理的场景。
+- 希望由 AI 修改 Markdown，并通过生成 PDF 图片检查 Word 版式效果的流程。
+- 需要一个无需学校 DOCX 模板包替换的开源实现。
 
-- `[Content_Types].xml`
-- `_rels/.rels`
-- `docProps/core.xml`
-- `docProps/app.xml`
-- `word/document.xml`
-- `word/styles.xml`
-- `word/settings.xml`
-- `word/fontTable.xml`
-- `word/header1.xml`
-- `word/footer1.xml`
-- `word/_rels/document.xml.rels`
-- `word/media/*`
+不适合：
 
-因此它不依赖 `xju-template.docx`，也不会携带模板中的隐藏样式、历史关系、修订痕迹或复杂 Word 私有状态。代价是：学校模板中非常细的人工版式细节，需要逐步在原生样式和节属性里补齐。
+- 完全跳过 Word / WPS 最终检查后直接提交。
+- 复杂浮动对象、脚注尾注、修订痕迹、自动交叉题注等深度 Word 排版场景。
+- 评议书、答辩委员会意见等过程性材料的整包合并。
 
 ## 安装
 
-### 最小依赖
+### Python 依赖
 
 ```bash
-cd xju-thesis-md2docx-native
+git clone https://github.com/<your-name>/xju-thesis-md2docx.git
+cd xju-thesis-md2docx
 python3 -m pip install -r requirements.txt
 ```
 
-最小依赖可以完成正文、封面、图片、表格和目录域导出。公式会在依赖缺失时保留为 LaTeX 文本，并打印 warning。
+最小依赖只需要 Python 和 Pillow，可以完成正文、封面、图片、表格、目录域和基础公式文本导出。
 
-### 公式依赖
+### 公式转换依赖
 
-如果希望公式尽量转成 Word 原生公式：
+如果希望 LaTeX 公式尽量转换为 Word 原生公式，需要安装 Node.js 依赖：
 
 ```bash
-cd xju-thesis-md2docx-native/xju_thesis_md2docx_native/world-math
+cd xju_thesis_md2docx/world-math
 npm install
 ```
 
-公式转换 helper 使用 Node.js。这里不自动联网安装依赖，避免导出过程被网络或代理问题卡住。
+公式依赖是可选项。没有安装时，导出不会失败，公式会以 LaTeX 文本形式写入 Word，并在命令行提示 warning。
+
+### PDF 预览依赖
+
+PDF 预览不是生成 DOCX 的必要条件。当前支持两个后端：
+
+| 后端 | 适用环境 | 特点 |
+| --- | --- | --- |
+| `word` | WSL + Windows Microsoft Word | 默认高保真后端，最接近 Word 打开效果 |
+| `libreoffice` | Linux / WSL / CI | 不依赖 Word，更通用，但版式可能与 Word 有差异 |
+
+Word 后端诊断：
+
+```bash
+bash tools/word-docx2pdf/doctor.sh
+```
+
+LibreOffice 后端诊断：
+
+```bash
+bash tools/libreoffice-docx2pdf/doctor.sh
+```
+
+Ubuntu / Debian 可安装 LibreOffice：
+
+```bash
+sudo apt-get update
+sudo apt-get install -y libreoffice
+```
+
+两个后端都不需要 Docker，也不需要 `docker pull`。
 
 ## 快速开始
 
-运行示例：
+运行内置示例：
 
 ```bash
-cd xju-thesis-md2docx-native
 bash demo.sh
 ```
 
@@ -76,49 +99,53 @@ example/thesis-demo.generated.docx
 导出自己的论文：
 
 ```bash
-python3 xju_thesis_md2docx_native.py thesis.md thesis.docx
+python3 xju_thesis_md2docx.py thesis.md thesis.docx
 ```
 
-如果不写输出路径，默认生成同名 `.docx`：
+如果不传输出路径，默认生成同名 `.docx`：
 
 ```bash
-python3 xju_thesis_md2docx_native.py thesis.md
+python3 xju_thesis_md2docx.py thesis.md
 ```
 
 常用参数：
 
 ```bash
-python3 xju_thesis_md2docx_native.py thesis.md thesis.docx --assets-dir path/to/cover-assets
-python3 xju_thesis_md2docx_native.py thesis.md thesis.docx --no-cover-assets
-python3 xju_thesis_md2docx_native.py thesis.md thesis.docx --no-formula-conversion
+python3 xju_thesis_md2docx.py thesis.md thesis.docx --assets-dir path/to/cover-assets
+python3 xju_thesis_md2docx.py thesis.md thesis.docx --no-cover-assets
+python3 xju_thesis_md2docx.py thesis.md thesis.docx --no-formula-conversion
 ```
 
-默认封面资源在：
+封面默认使用仓库内置资源：
 
 ```text
-xju_thesis_md2docx_native/resources/
+xju_thesis_md2docx/resources/xju-emblem.jpeg
+xju_thesis_md2docx/resources/xju-wordmark.png
 ```
 
-也可以在 Markdown 同级目录下放：
+也可以在论文 Markdown 同级目录下放置本地资源，优先覆盖默认封面图：
 
 ```text
 img/cover-assets/xju-emblem.jpeg
 img/cover-assets/xju-wordmark.png
 ```
 
-## 生成 PDF 预览
+## PDF 预览
 
-如果在 WSL 中运行，且 Windows 主机安装了 Microsoft Word，可以使用内置的 Word 后端导出 PDF：
+生成 DOCX 后，可以继续导出 PDF：
 
 ```bash
-bash tools/word-docx2pdf/doctor.sh
-python3 xju_thesis_md2docx_native.py example/thesis-demo.md example/thesis-demo.generated.docx
-bash tools/word-docx2pdf/docx2pdf.sh example/thesis-demo.generated.docx example/thesis-demo.generated.pdf
+python3 xju_thesis_md2docx.py example/thesis-demo.md example/thesis-demo.generated.docx
+bash tools/docx2pdf/docx2pdf.sh --backend word example/thesis-demo.generated.docx example/thesis-demo.generated.pdf
 ```
 
-这个后端默认使用运行时临时目录，不依赖本仓库的绝对路径。确实需要指定 Windows 临时目录时，可以给 `docx2pdf.sh` 传 `--tmp-root`。
+使用 LibreOffice 后端：
 
-PDF 渲染成图片后，AI 或人工可以直接检查 Word 样式效果：
+```bash
+bash tools/docx2pdf/docx2pdf.sh --backend libreoffice example/thesis-demo.generated.docx example/thesis-demo.generated.pdf
+```
+
+如果要让 AI 或人工逐页检查版式，可以把 PDF 渲染成图片：
 
 ```bash
 mkdir -p example/preview/thesis-demo
@@ -127,11 +154,17 @@ pdftoppm -png -f 1 -l 6 -r 120 \
   example/preview/thesis-demo/page
 ```
 
-`example/preview/` 是生成物，默认被 `.gitignore` 忽略。
+`tools/docx2pdf/` 是统一调度入口；`tools/word-docx2pdf/` 和 `tools/libreoffice-docx2pdf/` 是独立后端。Word 后端默认使用 Windows 临时目录，不依赖本仓库或个人电脑的绝对路径。确实需要指定临时目录时，可以使用：
+
+```bash
+bash tools/docx2pdf/docx2pdf.sh --backend word thesis.docx thesis.pdf --tmp-root /mnt/c/Temp/xju-word-docx2pdf
+```
+
+格式验收建议以 `word` 后端为准；`libreoffice` 后端更适合无 Word 环境下快速预览。
 
 ## Markdown 结构
 
-推荐结构：
+推荐从 `example/thesis-demo.md` 复制结构，再替换为自己的论文内容。核心结构如下：
 
 ```markdown
 # 论文题目
@@ -156,6 +189,17 @@ pdftoppm -png -f 1 -l 6 -r 120 \
 
 ---
 
+## 任务书
+届：2026
+工作开始日期：2026 年 3 月 1 日
+工作结束日期：2026 年 5 月 20 日
+目的及意义：任务书中的目的及意义。
+主要工作任务：任务书中的主要工作任务。
+教研室主任：
+接受任务日期：
+
+---
+
 ## 摘要
 中文摘要正文。
 
@@ -177,6 +221,7 @@ KEY WORDS: Keyword one; Keyword two; Keyword three
 
 # 1 绪论
 ## 1.1 研究背景
+### 1.1.1 三级标题示例
 正文。
 
 # 参考文献
@@ -190,28 +235,96 @@ KEY WORDS: Keyword one; Keyword two; Keyword three
 附录正文。
 ```
 
-正文必须从第一个编号一级标题开始，例如 `# 1 绪论`。前置部分用二级标题组织。
+约定：
 
-## 当前边界
+- 正文从第一个编号一级标题开始，例如 `# 1 绪论`。
+- 前置部分使用二级标题组织，例如 `## 封面信息`、`## 摘要`。
+- 图题、表题建议单独成行，例如 `图 2-1 xxx`、`表 2-1 xxx`。
+- 正文引用写作 `[1]`、`[1-3]`、`[1，3-4]`，导出器会尽量生成上标和文末跳转。
+- 长表可以在表题和表格之间写 `<!-- xju-table-split: 8, 10 -->`，按数据行拆分续表。
+- 并排图使用 `:::figure-row` 容器，见示例文件。
 
-- 目录是 Word 域，最终提交前仍建议在 Word / WPS 中刷新目录和页码。
-- 页眉、页脚、标题、正文、题注、表格和参考文献已有原生样式，但还不是学校模板的逐像素复刻。
-- 不处理任务书、评议书、答辩委员会意见等过程性材料合并。
-- 不校验参考文献真实性，也不自动改写 GB/T 7714 条目。
-- 不支持复杂 Word 手工排版对象，例如脚注、尾注、自动交叉题注、复杂浮动图文混排。
+更多写法见：
+
+- `example/README.md`
+- `example/thesis-demo.md`
+- `tools/word-docx2pdf/README.md`
+
+## 格式对齐状态
+
+当前实现已经按新疆大学本科毕业论文（设计）规范和范例重点对齐以下内容：
+
+- A4 页面、页边距、页眉页脚、正文页码；
+- 封面、声明、任务书、中英文摘要、目录、正文、参考文献、致谢、附录的文档顺序；
+- 一级、二级、三级标题的字体、字号、缩进、段前段后和目录级别；
+- 正文段落小四宋体、首行缩进两字符、1.5 倍行距；
+- 图题、表题、表格文字、参考文献悬挂缩进；
+- 公式块编号、常见 `\hat{}`、`\bar{}` 重音公式后处理；
+- 正文参考文献引用上标和链接。
+
+仍建议最终提交前人工检查：
+
+- 在 Word / WPS 中刷新目录域和页码；
+- 检查分页、孤行、图片位置、表格跨页和公式显示；
+- 按学院或指导教师的额外要求调整非统一部分；
+- 核对参考文献真实性和 GB/T 7714 细节。
 
 ## 项目结构
 
 ```text
-xju-thesis-md2docx-native/
-├── xju_thesis_md2docx_native.py
-├── xju_thesis_md2docx_native/
-│   ├── main.py
-│   ├── resources/
-│   └── world-math/
+xju-thesis-md2docx/
+├── xju_thesis_md2docx.py              # 公开入口
+├── xju_thesis_md2docx/
+│   ├── main.py                        # 原生 OOXML 导出器
+│   ├── resources/                     # 默认封面资源
+│   └── world-math/                    # LaTeX -> OMML helper
 ├── example/
+│   ├── README.md
+│   ├── thesis-demo.md
+│   └── img/
 ├── tools/
-│   └── word-docx2pdf/
+│   ├── docx2pdf/                      # PDF 后端统一入口
+│   ├── word-docx2pdf/                 # WSL + Windows Word PDF 后端
+│   └── libreoffice-docx2pdf/          # LibreOffice PDF 后端
 ├── demo.sh
+├── requirements.txt
+├── CONTRIBUTING.md
+├── LICENSE
 └── README.md
 ```
+
+## 开发与贡献
+
+本项目以 Markdown 为源文件，DOCX/PDF 是生成物。提交改动时建议：
+
+```bash
+python3 -m py_compile xju_thesis_md2docx/main.py
+bash demo.sh
+```
+
+如果修改了 PDF 后端，在 WSL + Word 环境下再运行：
+
+```bash
+bash tools/word-docx2pdf/doctor.sh
+bash tools/docx2pdf/docx2pdf.sh --backend word example/thesis-demo.generated.docx example/thesis-demo.generated.pdf
+```
+
+如果修改了 LibreOffice 后端，再运行：
+
+```bash
+bash tools/libreoffice-docx2pdf/doctor.sh
+bash tools/docx2pdf/docx2pdf.sh --backend libreoffice example/thesis-demo.generated.docx example/thesis-demo.generated.pdf
+```
+
+欢迎围绕以下方向贡献：
+
+- 更完整的学校格式细节对齐；
+- LibreOffice / OnlyOffice 等可选 PDF 后端；
+- 更稳健的公式、图表、引用和附录处理；
+- 更小、更清晰的示例和测试文档。
+
+更详细的提交约定见 `CONTRIBUTING.md`。
+
+## License
+
+MIT

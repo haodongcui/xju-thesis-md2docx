@@ -157,7 +157,7 @@ cleanup() {
   if [[ "$KEEP_TMP" == "1" ]]; then
     echo "Temporary files kept at: $JOB_DIR" >&2
   else
-    rm -rf "$JOB_DIR"
+    rm -rf "$JOB_DIR" 2>/dev/null || true
   fi
 }
 trap cleanup EXIT

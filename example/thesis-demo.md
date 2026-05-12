@@ -2,7 +2,7 @@
 
 ## 封面信息
 
-论文题目：新疆大学本科毕业论文 Markdown 转 Word 原生版示例
+论文题目：新疆大学本科毕业论文 Markdown 转 Word 示例
 
 学生姓名：张三
 
@@ -30,6 +30,24 @@
 
 ---
 
+## 任务书
+
+届：2026
+
+工作开始日期：2026 年 3 月 1 日
+
+工作结束日期：2026 年 5 月 20 日
+
+目的及意义：围绕新疆大学本科毕业论文 Markdown 写作与 Word 原生导出场景，验证主稿结构化维护、版式自动生成和 PDF 预览检查的完整流程，为后续论文写作工具化提供可复用示例。
+
+主要工作任务：梳理学校本科毕业论文格式要求，设计 Markdown 前置区和正文结构；实现原生 OOXML 导出、公式转换、图表插入、目录域和页码节设置；生成示例论文并通过 Word PDF 预览检查版式。
+
+教研室主任：
+
+接受任务日期：
+
+---
+
 ## 摘要
 
 本文围绕新疆大学本科毕业论文写作场景，给出一个基于 Markdown 主稿与原生 OOXML 生成的示例工作流。该流程以结构化文本作为长期维护载体，通过样式生成、公式转换、图表插入、目录域写入和参考文献链接等机制，形成一条适合多轮修改与反复导出的论文排版路径。为便于使用者快速上手，本文示例进一步展示了标题层级、单图、并排图、表格、行内公式、块公式、公式编号、引用块、代码块、参考文献和附录等常见论文元素在该工具中的写法。
@@ -42,7 +60,7 @@
 
 ## ABSTRACT
 
-This document presents a Markdown-to-Word workflow for Xinjiang University undergraduate theses. The core idea is to keep the thesis source in Markdown, generate a native OOXML DOCX package, and produce a reviewable Word document with a cover page, table of contents, figures, tables, references, and appendices. To make the workflow easier to understand, this sample thesis explicitly demonstrates heading hierarchies, single figures, side-by-side figures, tables, inline equations, numbered display equations, block quotes, code blocks, references, and appendices.
+This document presents a Markdown-to-Word workflow for Xinjiang University undergraduate theses. The core idea is to keep the thesis source in Markdown, generate an OOXML DOCX package, and produce a reviewable Word document with a cover page, table of contents, figures, tables, references, and appendices. To make the workflow easier to understand, this sample thesis explicitly demonstrates heading hierarchies, single figures, side-by-side figures, tables, inline equations, numbered display equations, block quotes, code blocks, references, and appendices.
 
 The example also highlights a practical separation of concerns. Markdown is used to maintain the evolving academic content, while Word is reserved for final formatting inspection, advisor review, and submission-oriented polishing. For undergraduate theses that often require repeated revisions, this separation can reduce redundant typesetting work and improve document version management.
 
@@ -77,6 +95,10 @@ KEY WORDS: Markdown; Word; Native OOXML; Format automation; Document workflow
 毕业论文在撰写后期通常会经历多轮结构性修改。若全文直接维护在 Word 中，章节调整、目录刷新、图表移动、批量替换和版本对比会逐步变得低效。将主稿长期维护在 Markdown 中，则更适合配合版本控制、文本差异比较和结构性重写[1-2]。
 
 若将第 $k$ 次修订后的文稿记为 $\mathbf{x}^{(k)}$，则版本差异可以粗略写成 $\Delta_k=\|\mathbf{x}^{(k)}-\mathbf{x}^{(k-1)}\|_0$，而由版式调整带来的扰动可抽象为 $r_k=\|T(\mathbf{x}^{(k)})-T(\mathbf{x}^{(k-1)})\|_1$。这类写法虽然只是示意，但很适合在论文中穿插展示范数、算子和下标等行内公式能力。
+
+### 1.1.1 论文版式约束
+
+三级标题用于呈现小节内部的进一步划分。按照学校格式要求，三级标题采用四号宋体，左起空两字符，段前空半行，段后不另加空行；正文仍回到小四号宋体、首行缩进两字符和 1.5 倍行距。
 
 对于一套论文导出工具而言，目标并不是完全取代 Word，而是在“内容维护”与“最终提交格式”之间建立清晰分工。若以“文稿维护成本”作为抽象目标，则其优化方向可以写成：
 
@@ -247,7 +269,7 @@ $$
 ```python
 def export_once(markdown_path, output_path):
     document = parse_markdown(markdown_path)
-    docx = render_native_ooxml(document)
+    docx = render_ooxml_docx(document)
     docx.save(output_path)
 ```
 
@@ -376,7 +398,7 @@ $$
 
 本文示例说明，将新疆大学本科毕业论文长期维护在 Markdown 中，再导出到 Word，是一种适合反复修改和多轮审阅的实用工作流。对多数同学而言，它最大的价值不是“零人工排版”，而是“减少重复劳动，并把人工精力集中在最后一次格式验收上”。
 
-进一步说，这套示例不仅展示了标题、目录、图片、表格和参考文献的基本导出能力，也刻意展示了块公式、并排图和引用跳转等更接近真实论文写作的场景。因此，它更适合作为“原生版示例论文”，而不是一份最小化的语法演示文档。
+进一步说，这套示例不仅展示了标题、目录、图片、表格和参考文献的基本导出能力，也刻意展示了块公式、并排图和引用跳转等更接近真实论文写作的场景。因此，它更适合作为一份完整示例论文，而不是一份最小化的语法演示文档。
 
 ---
 

@@ -55,6 +55,13 @@ WORD_MATH_REQUIRED_MODULES = (
     WORD_MATH_DIR / "node_modules" / "@hungknguyen" / "mathml2omml",
 )
 OMML_TEXT_PATTERN = re.compile(r"(<(?:m|w):t\b[^>]*>)(.*?)(</(?:m|w):t>)", re.DOTALL)
+OMML_ACCENT_CHAR_MAP = {
+    "^": "\u0302",  # combining circumflex accent
+    "ˆ": "\u0302",
+    "‾": "\u0305",  # combining overline
+    "¯": "\u0305",
+    "ˉ": "\u0305",
+}
 COVER_EMBLEM_NAME = "xju-emblem.jpeg"
 COVER_WORDMARK_NAME = "xju-wordmark.png"
 
@@ -74,6 +81,8 @@ FIGURE_ROW_MAX_WIDTH_IN = 2.75
 FIGURE_ROW_MAX_HEIGHT_IN = 3.2
 BODY_TEXT_WIDTH_TWIPS = 8313
 BODY_TEXT_CENTER_TWIPS = BODY_TEXT_WIDTH_TWIPS // 2
+SIGNATURE_IMAGE_WIDTH_EMU = 1051560
+SIGNATURE_IMAGE_HEIGHT_EMU = 494511
 
 STYLE_BODY = "XjuBody"
 STYLE_HEADING_1 = "XjuHeading1"
@@ -87,13 +96,17 @@ STYLE_QUOTE = "XjuQuote"
 STYLE_CODE_BLOCK = "XjuCodeBlock"
 STYLE_MATH_BLOCK = "XjuMathBlock"
 STYLE_TABLE_TEXT = "XjuTableText"
+STYLE_HEADER = "XjuHeader"
+STYLE_FOOTER = "XjuFooter"
 
 REL_ID_STYLES = "rId1"
 REL_ID_SETTINGS = "rId2"
 REL_ID_FONT_TABLE = "rId3"
 REL_ID_HEADER = "rId4"
-REL_ID_FOOTER = "rId5"
-IMAGE_STARTING_RID = 6
+REL_ID_EMPTY_FOOTER = "rId5"
+REL_ID_PAGE_FOOTER = "rId6"
+REL_ID_NUMBERING = "rId7"
+IMAGE_STARTING_RID = 8
 
 
 def xml_text(text: str) -> str:
@@ -110,6 +123,7 @@ def run_text_xml(
     *,
     bold: bool = False,
     italic: bool = False,
+    underline: bool = False,
     superscript: bool = False,
     font_ascii: str | None = None,
     font_hansi: str | None = None,
@@ -130,6 +144,8 @@ def run_text_xml(
         rpr.append("<w:b/><w:bCs/>")
     if italic:
         rpr.append("<w:i/><w:iCs/>")
+    if underline:
+        rpr.append('<w:u w:val="single"/>')
     if superscript:
         rpr.append('<w:vertAlign w:val="superscript"/>')
     if size is not None:
@@ -185,6 +201,7 @@ def indent_xml(
     *,
     first_line_chars: int | None = None,
     first_line: int | None = None,
+    left_chars: int | None = None,
     left: int | None = None,
     right: int | None = None,
     hanging: int | None = None,
@@ -194,6 +211,8 @@ def indent_xml(
         attrs.append(f'w:firstLineChars="{first_line_chars}"')
     if first_line is not None:
         attrs.append(f'w:firstLine="{first_line}"')
+    if left_chars is not None:
+        attrs.append(f'w:leftChars="{left_chars}"')
     if left is not None:
         attrs.append(f'w:left="{left}"')
     if right is not None:
@@ -709,6 +728,45 @@ class MathConverter:
                 attach_nary_body(child)
                 idx += 1
 
+        def accent_char_from_limupp(elem: ET.Element) -> str | None:
+            if elem.tag != f"{{{M_NS}}}limUpp":
+                return None
+            limit = elem.find(f"{{{M_NS}}}lim")
+            if limit is None:
+                return None
+            limit_text = "".join(limit.itertext()).strip()
+            if len(limit_text) != 1:
+                return None
+            return OMML_ACCENT_CHAR_MAP.get(limit_text)
+
+        def make_accent_element(limupp: ET.Element, accent_char: str) -> ET.Element | None:
+            base = limupp.find(f"{{{M_NS}}}e")
+            if base is None:
+                return None
+
+            accent = ET.Element(f"{{{M_NS}}}acc")
+            accent_pr = ET.SubElement(accent, f"{{{M_NS}}}accPr")
+            ET.SubElement(accent_pr, f"{{{M_NS}}}chr", {f"{{{M_NS}}}val": accent_char})
+            acc_base = ET.SubElement(accent, f"{{{M_NS}}}e")
+            acc_base.text = base.text
+            for child in list(base):
+                acc_base.append(child)
+            accent.tail = limupp.tail
+            return accent
+
+        def replace_limupp_accents(parent: ET.Element) -> None:
+            children = list(parent)
+            for idx, child in enumerate(children):
+                replace_limupp_accents(child)
+                accent_char = accent_char_from_limupp(child)
+                if accent_char is None:
+                    continue
+                accent = make_accent_element(child, accent_char)
+                if accent is None:
+                    continue
+                parent.remove(child)
+                parent.insert(idx, accent)
+
         def repl(match: re.Match[str]) -> str:
             raw = match.group(2)
             cleaned = escape(html.unescape(raw))
@@ -720,6 +778,7 @@ class MathConverter:
         except ET.ParseError:
             return None
         attach_nary_body(root)
+        replace_limupp_accents(root)
         return ET.tostring(root, encoding="unicode")
 
     def emit_warning(self) -> None:
@@ -1073,11 +1132,25 @@ def formatted_paragraph_xml(
 
 
 def page_break_xml() -> str:
-    return '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'
+    spacer = spacing_xml(before=0, after=0, line=1, line_rule="exact")
+    return f'<w:p><w:pPr>{spacer}</w:pPr><w:r><w:br w:type="page"/></w:r></w:p>'
+
+
+def add_page_break_before_paragraph_xml(paragraph: str) -> str:
+    if "<w:pPr>" in paragraph:
+        return paragraph.replace("<w:pPr>", "<w:pPr><w:pageBreakBefore/>", 1)
+    return paragraph.replace("<w:p>", "<w:p><w:pPr><w:pageBreakBefore/></w:pPr>", 1)
 
 
 def section_break_paragraph_xml(sect_pr: str) -> str:
-    return f"<w:p><w:pPr>{sect_pr}</w:pPr></w:p>"
+    spacer = spacing_xml(before=0, after=0, line=1, line_rule="exact")
+    return f"<w:p><w:pPr>{spacer}{sect_pr}</w:pPr></w:p>"
+
+
+def add_section_to_paragraph_xml(paragraph: str, sect_pr: str) -> str:
+    if "</w:pPr>" in paragraph:
+        return paragraph.replace("</w:pPr>", f"{sect_pr}</w:pPr>", 1)
+    return paragraph.replace("<w:p>", f"<w:p><w:pPr>{sect_pr}</w:pPr>", 1)
 
 
 def toc_field_paragraph_xml() -> str:
@@ -1550,6 +1623,30 @@ def table_xml(
     return f"<w:tbl>{tbl_pr}{tbl_grid}{''.join(trs)}</w:tbl>"
 
 
+def needs_soft_wrap_space(left: str, right: str) -> bool:
+    if not left or not right:
+        return False
+    left_char = left[-1]
+    right_char = right[0]
+    return (
+        left_char.isascii()
+        and right_char.isascii()
+        and left_char.isalnum()
+        and right_char.isalnum()
+    )
+
+
+def join_soft_wrapped_lines(lines: list[str]) -> str:
+    parts = [line.strip() for line in lines if line.strip()]
+    if not parts:
+        return ""
+    merged = parts[0]
+    for part in parts[1:]:
+        separator = " " if needs_soft_wrap_space(merged.rstrip(), part.lstrip()) else ""
+        merged += separator + part
+    return merged
+
+
 def split_plain_paragraphs(text: str) -> list[str]:
     paragraphs: list[str] = []
     buffer: list[str] = []
@@ -1557,14 +1654,18 @@ def split_plain_paragraphs(text: str) -> list[str]:
         stripped = line.strip()
         if not stripped:
             if buffer:
-                paragraphs.append(" ".join(part.strip() for part in buffer if part.strip()))
+                paragraph = join_soft_wrapped_lines(buffer)
+                if paragraph:
+                    paragraphs.append(paragraph)
                 buffer = []
             continue
         if stripped.startswith(">"):
             stripped = stripped[1:].strip()
         buffer.append(stripped)
     if buffer:
-        paragraphs.append(" ".join(part.strip() for part in buffer if part.strip()))
+        paragraph = join_soft_wrapped_lines(buffer)
+        if paragraph:
+            paragraphs.append(paragraph)
     return paragraphs
 
 
@@ -1722,7 +1823,7 @@ def cover_logo_table_xml(
 
     tbl_pr = (
         "<w:tblPr>"
-        '<w:tblW w:w="6200" w:type="dxa"/>'
+        '<w:tblW w:w="5400" w:type="dxa"/>'
         '<w:jc w:val="center"/>'
         '<w:tblLayout w:type="fixed"/>'
         "<w:tblBorders>"
@@ -1735,11 +1836,23 @@ def cover_logo_table_xml(
         "</w:tblBorders>"
         "</w:tblPr>"
     )
-    tbl_grid = '<w:tblGrid><w:gridCol w:w="1500"/><w:gridCol w:w="4700"/></w:tblGrid>'
+    tbl_grid = (
+        "<w:tblGrid>"
+        '<w:gridCol w:w="1850"/>'
+        '<w:gridCol w:w="400"/>'
+        '<w:gridCol w:w="3150"/>'
+        "</w:tblGrid>"
+    )
 
-    def cover_logo_cell(item: MediaImage | None, *, max_width_in: float, max_height_in: float) -> str:
+    def cover_logo_cell(
+        item: MediaImage | None,
+        *,
+        max_width_in: float,
+        max_height_in: float,
+        align: str = "center",
+    ) -> str:
         if item is None or media_manager is None:
-            body = paragraph_xml(" ", align="center", ppr_extra=spacing_xml(after=0))
+            body = paragraph_xml(" ", align=align, ppr_extra=spacing_xml(after=0))
         else:
             width_emu, height_emu = fit_extent_emu(
                 item.width_emu,
@@ -1748,7 +1861,7 @@ def cover_logo_table_xml(
                 max_height_emu=int(max_height_in * EMU_PER_INCH),
             )
             body = paragraph_xml(
-                align="center",
+                align=align,
                 runs=[
                     image_run_xml(
                         item,
@@ -1764,9 +1877,12 @@ def cover_logo_table_xml(
 
     row = (
         "<w:tr>"
-        '<w:trPr><w:trHeight w:val="900" w:hRule="atLeast"/></w:trPr>'
-        + cover_logo_cell(emblem_item, max_width_in=1.05, max_height_in=1.05)
-        + cover_logo_cell(wordmark_item, max_width_in=4.55, max_height_in=1.55)
+        '<w:trPr><w:trHeight w:val="860" w:hRule="atLeast"/></w:trPr>'
+        + cover_logo_cell(emblem_item, max_width_in=1.29, max_height_in=1.29, align="left")
+        + "<w:tc><w:tcPr><w:vAlign w:val=\"center\"/></w:tcPr>"
+        + paragraph_xml(" ", ppr_extra=spacing_xml(after=0))
+        + "</w:tc>"
+        + cover_logo_cell(wordmark_item, max_width_in=2.42, max_height_in=1.39, align="left")
         + "</w:tr>"
     )
     return f"<w:tbl>{tbl_pr}{tbl_grid}{row}</w:tbl>"
@@ -1787,7 +1903,7 @@ def cover_info_table_xml(title: str, cover_info: dict[str, str]) -> str:
         ("所属院系", "所属院系:"),
         ("专业", "专    业:"),
         ("班级", "班    级:"),
-        ("指导教师", "指导教师:"),
+        ("指导教师", "指导老师:"),
         ("日期", "日    期:"),
     ]
     for source_key, display_label in ordered_fields:
@@ -1838,13 +1954,13 @@ def cover_info_table_xml(title: str, cover_info: dict[str, str]) -> str:
         label_para = formatted_paragraph_xml(
             label,
             align="center",
-            ppr_extra=spacing_xml(before=240, after=120),
+            ppr_extra=spacing_xml(before=100, after=50, line=360),
             run_kwargs=label_run,
         )
         value_para = formatted_paragraph_xml(
             value,
             align="center",
-            ppr_extra=spacing_xml(before=240, after=120),
+            ppr_extra=spacing_xml(before=100, after=50, line=360),
             run_kwargs=value_run,
         )
         value_borders = ["<w:tcBorders>"]
@@ -1855,7 +1971,7 @@ def cover_info_table_xml(title: str, cover_info: dict[str, str]) -> str:
 
         rows_xml.append(
             "<w:tr>"
-            '<w:trPr><w:trHeight w:val="680" w:hRule="atLeast"/></w:trPr>'
+            '<w:trPr><w:trHeight w:val="686" w:hRule="atLeast"/></w:trPr>'
             '<w:tc><w:tcPr><w:tcW w:w="1948" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>'
             + label_para
             + "</w:tc>"
@@ -1888,12 +2004,12 @@ def build_cover_elements(
         formatted_paragraph_xml(
             "新疆大学本科毕业论文(设计)",
             align="center",
-            ppr_extra=spacing_xml(before=240, after=120, line=600),
+            ppr_extra=spacing_xml(before=560, after=0, line=360),
             run_kwargs={**title_run, "bold": True, "size": 52},
         )
     )
 
-    elements.append(paragraph_xml(" ", ppr_extra=spacing_xml(after=60)))
+    elements.append(paragraph_xml(" ", ppr_extra=spacing_xml(after=0, line=480)))
 
     emblem_item = None
     wordmark_item = None
@@ -1905,17 +2021,24 @@ def build_cover_elements(
     if logo_tbl:
         elements.append(logo_tbl)
 
-    for _ in range(4):
-        elements.append(paragraph_xml(" ", ppr_extra=spacing_xml(after=40)))
+    for _ in range(2):
+        elements.append(paragraph_xml(" ", ppr_extra=spacing_xml(after=132, line=360)))
 
     elements.append(cover_info_table_xml(title, cover_info))
 
     return elements
 
 
-def build_front_heading(text: str, *, english: bool = False, toc: bool = False) -> str:
+def build_front_heading(
+    text: str,
+    *,
+    english: bool = False,
+    toc: bool = False,
+    statement: bool = False,
+    page_break_before: bool = False,
+) -> str:
     if toc:
-        return formatted_paragraph_xml(
+        paragraph = formatted_paragraph_xml(
             "目  录",
             style=STYLE_FRONT_HEADING,
             align="center",
@@ -1928,15 +2051,33 @@ def build_front_heading(text: str, *, english: bool = False, toc: bool = False) 
                 "size": 32,
             },
         )
+        return add_page_break_before_paragraph_xml(paragraph) if page_break_before else paragraph
 
-    if english:
+    if statement:
+        run_kwargs = {
+            "font_ascii": "黑体",
+            "font_hansi": "黑体",
+            "font_eastasia": "黑体",
+            "size": 32,
+        }
+        # The declaration page in the official sample is higher than the
+        # abstract/TOC headings even though it uses the same heading face/size.
+        # Use the measured sample position for this special front-matter page.
+        ppr_extra = '<w:snapToGrid w:val="0"/>' + spacing_xml(
+            before_lines=100,
+            before=240,
+            after_lines=200,
+            after=480,
+            line=240,
+        )
+    elif english:
         run_kwargs = {
             "font_ascii": "Times New Roman",
             "font_hansi": "Times New Roman",
             "font_eastasia": "Times New Roman",
             "size": 32,
         }
-        ppr_extra = spacing_xml(before_lines=300, before=720, after_lines=200, after=480)
+        ppr_extra = spacing_xml(before_lines=300, before=720, after_lines=200, after=480, line=240)
     else:
         run_kwargs = {
             "font_ascii": "黑体",
@@ -1944,15 +2085,34 @@ def build_front_heading(text: str, *, english: bool = False, toc: bool = False) 
             "font_eastasia": "黑体",
             "size": 32,
         }
-        ppr_extra = '<w:snapToGrid w:val="0"/>' + spacing_xml(before_lines=300, before=720, after_lines=200, after=480)
+        ppr_extra = '<w:snapToGrid w:val="0"/>' + spacing_xml(
+            before_lines=300,
+            before=720,
+            after_lines=200,
+            after=480,
+            line=240,
+        )
 
-    return formatted_paragraph_xml(
+    if page_break_before and not statement:
+        if english:
+            ppr_extra = spacing_xml(before_lines=300, before=720, after_lines=200, after=480, line=240)
+        else:
+            ppr_extra = '<w:snapToGrid w:val="0"/>' + spacing_xml(
+                before_lines=300,
+                before=720,
+                after_lines=200,
+                after=480,
+                line=240,
+            )
+
+    paragraph = formatted_paragraph_xml(
         text,
         style=STYLE_FRONT_HEADING,
         align="center",
         ppr_extra=ppr_extra,
         run_kwargs=run_kwargs,
     )
+    return add_page_break_before_paragraph_xml(paragraph) if page_break_before else paragraph
 
 
 def build_body_paragraph(
@@ -1971,7 +2131,7 @@ def build_body_paragraph(
     return paragraph_with_inline_math_xml(
         text,
         style=STYLE_BODY,
-        ppr_extra=spacing_xml(line=360),
+        ppr_extra='<w:widowControl w:val="0"/>' + spacing_xml(line=360),
         first_line_chars=200,
         first_line=480,
         run_kwargs=run_kwargs,
@@ -1997,7 +2157,7 @@ def build_caption_paragraph(
         "size": 21,
         "bold": True,
     }
-    ppr_extra = spacing_xml(line=360, before=0, after=0)
+    ppr_extra = spacing_xml(line=360, before=0, after=0) + indent_xml(left=0, first_line=0)
     if keep_next:
         # Used by table captions ("表 X-Y …") so the caption stays on the same
         # page as the table that follows.
@@ -2052,7 +2212,11 @@ def build_keyword_paragraph(keywords: str, *, english: bool = False) -> str | No
                 size=24,
             ),
         ]
-    return paragraph_xml(runs=runs, style=STYLE_BODY, ppr_extra=spacing_xml(line=360))
+    return paragraph_xml(
+        runs=runs,
+        style=STYLE_BODY,
+        ppr_extra=spacing_xml(line=360) + indent_xml(left=0, first_line_chars=0, first_line=0),
+    )
 
 
 def build_reference_paragraph(text: str, reference_anchors: dict[str, str] | None = None) -> str:
@@ -2088,8 +2252,20 @@ def build_reference_paragraph(text: str, reference_anchors: dict[str, str] | Non
     )
 
 
-def build_blank_paragraph(*, style: str = STYLE_BODY, line: int = 360) -> str:
-    return paragraph_xml(" ", style=style, ppr_extra=spacing_xml(line=line))
+def build_blank_paragraph(*, style: str = STYLE_BODY, line: int = 360, run_size: int | None = None) -> str:
+    if run_size is None:
+        return paragraph_xml(" ", style=style, ppr_extra=spacing_xml(line=line))
+    return formatted_paragraph_xml(
+        " ",
+        style=style,
+        ppr_extra=spacing_xml(line=line),
+        run_kwargs={
+            "font_ascii": "Times New Roman",
+            "font_hansi": "Times New Roman",
+            "font_eastasia": "宋体",
+            "size": run_size,
+        },
+    )
 
 
 def build_statement_body_paragraph(
@@ -2116,7 +2292,15 @@ def build_statement_body_paragraph(
     )
 
 
-def build_statement_signature_paragraph(label: str, value: str = "", *, is_date: bool = False) -> str:
+def build_statement_signature_paragraph(
+    label: str,
+    value: str = "",
+    *,
+    is_date: bool = False,
+    signature_image: MediaImage | None = None,
+    media_manager: MediaManager | None = None,
+    signature_alt: str = "电子签名",
+) -> str:
     normalized = value.strip().strip("_").strip()
     if not normalized:
         normalized = "   年   月   日" if is_date else ""
@@ -2129,6 +2313,18 @@ def build_statement_signature_paragraph(label: str, value: str = "", *, is_date:
     ppr_extra = spacing_xml(line=360)
     if not is_date:
         ppr_extra += indent_xml(right=280)
+    if signature_image is not None and media_manager is not None:
+        runs = [
+            run_text_xml(label, **run_kwargs),
+            image_run_xml(
+                signature_image,
+                docpr_id=media_manager.next_drawing_id(),
+                alt_text=signature_alt,
+                width_emu=SIGNATURE_IMAGE_WIDTH_EMU,
+                height_emu=SIGNATURE_IMAGE_HEIGHT_EMU,
+            ),
+        ]
+        return paragraph_xml(runs=runs, align="right", ppr_extra=ppr_extra)
     return formatted_paragraph_xml(
         f"{label}{normalized}",
         align="right",
@@ -2156,6 +2352,173 @@ def split_statement_content(text: str) -> tuple[list[str], str, str]:
     return split_plain_paragraphs(body_text), author_value, date_value
 
 
+def parse_inline_image_value(value: str) -> tuple[str, str] | None:
+    match = IMAGE_PATTERN.match(value.strip())
+    if not match:
+        return None
+    return match.group("alt").strip(), match.group("target").strip()
+
+
+def first_nonempty_value(*values: str | None, default: str = "") -> str:
+    for value in values:
+        if value and value.strip():
+            return value.strip()
+    return default
+
+
+def wrap_taskbook_text(text: str, *, max_chars: int = 31, max_lines: int = 6) -> list[str]:
+    compact = join_soft_wrapped_lines(split_plain_paragraphs(text))
+    lines: list[str] = []
+    while compact and len(lines) < max_lines:
+        lines.append(compact[:max_chars])
+        compact = compact[max_chars:].lstrip()
+    while len(lines) < max_lines:
+        lines.append("")
+    return lines
+
+
+def taskbook_run_kwargs(*, bold: bool = False, size: int = 24) -> dict[str, object]:
+    return {
+        "font_ascii": "宋体",
+        "font_hansi": "宋体",
+        "font_eastasia": "宋体",
+        "bold": bold,
+        "size": size,
+    }
+
+
+def taskbook_display_width(text: str) -> int:
+    width = 0
+    for ch in text:
+        if unicodedata.east_asian_width(ch) in {"W", "F"}:
+            width += 2
+        else:
+            width += 1
+    return width
+
+
+def taskbook_underlined_run(value: str = "", *, width: int = 24) -> str:
+    text = value.strip()
+    padding = " " * max(2, width - taskbook_display_width(text))
+    return run_text_xml(text + padding, underline=True, **taskbook_run_kwargs())
+
+
+def taskbook_line_xml(runs: list[str], *, spacing: str | None = None, align: str | None = None) -> str:
+    return paragraph_xml(
+        runs=runs,
+        align=align,
+        ppr_extra=spacing if spacing is not None else spacing_xml(line=360),
+    )
+
+
+def build_taskbook_elements(taskbook_text: str, cover_info: dict[str, str]) -> list[str]:
+    task_info = parse_cover_info(taskbook_text)
+    college = first_nonempty_value(task_info.get("学院"), cover_info.get("所属院系"))
+    class_name = first_nonempty_value(task_info.get("班级"), cover_info.get("班级"))
+    student = first_nonempty_value(task_info.get("姓名"), cover_info.get("学生姓名"))
+    title = first_nonempty_value(task_info.get("毕业论文（设计）题目"), task_info.get("论文题目"), cover_info.get("论文题目"))
+    year = first_nonempty_value(task_info.get("届"), default="……")
+    start_date = first_nonempty_value(task_info.get("工作开始日期"), task_info.get("开始日期"))
+    end_date = first_nonempty_value(task_info.get("工作结束日期"), task_info.get("结束日期"))
+    purpose = first_nonempty_value(task_info.get("目的及意义"), task_info.get("题目的目的及意义"))
+    tasks = first_nonempty_value(task_info.get("主要工作任务"), task_info.get("工作任务"))
+    teacher = first_nonempty_value(task_info.get("指导教师"), cover_info.get("指导教师"))
+    office_head = first_nonempty_value(task_info.get("教研室（系）主任"), task_info.get("教研室主任"))
+    student_signature = first_nonempty_value(task_info.get("学生签名"))
+    accepted_date = first_nonempty_value(task_info.get("接受任务日期"), task_info.get("接受日期"))
+
+    body_run = taskbook_run_kwargs()
+    title_run = taskbook_run_kwargs(bold=True, size=44)
+    note_run = taskbook_run_kwargs(size=21)
+
+    elements: list[str] = []
+    elements.append(
+        formatted_paragraph_xml(
+            "新 疆 大 学",
+            align="center",
+            ppr_extra=spacing_xml(line=360),
+            run_kwargs=title_run,
+        )
+    )
+    elements.append(
+        formatted_paragraph_xml(
+            f"本科毕业论文（设计）任务书（{year}届）",
+            align="center",
+            ppr_extra="",
+            run_kwargs=title_run,
+        )
+    )
+    elements.append(paragraph_xml(""))
+    elements.append(
+        taskbook_line_xml(
+            [
+                run_text_xml("学院：", **body_run),
+                taskbook_underlined_run(college, width=24),
+                run_text_xml("  班级：", **body_run),
+                taskbook_underlined_run(class_name, width=22),
+            ]
+        )
+    )
+    elements.append(
+        taskbook_line_xml(
+            [
+                run_text_xml("姓名：", **body_run),
+                taskbook_underlined_run(student, width=25),
+            ]
+        )
+    )
+    elements.append(
+        taskbook_line_xml(
+            [
+                run_text_xml("毕业论文（设计）题目：", **body_run),
+                taskbook_underlined_run(title, width=35),
+            ]
+        )
+    )
+    elements.append(
+        taskbook_line_xml(
+            [
+                run_text_xml("毕业设计(论文)工作自", **body_run),
+                taskbook_underlined_run(start_date, width=11),
+                run_text_xml("起至", **body_run),
+                taskbook_underlined_run(end_date, width=11),
+                run_text_xml("止", **body_run),
+            ]
+        )
+    )
+    elements.append(formatted_paragraph_xml("毕业设计(论文)题目的目的及意义", ppr_extra="", run_kwargs=body_run))
+    purpose_line_count = 3 if purpose else 6
+    for line in wrap_taskbook_text(purpose, max_lines=purpose_line_count):
+        elements.append(taskbook_line_xml([taskbook_underlined_run(line, width=70)]))
+    elements.append(formatted_paragraph_xml("毕业设计(论文)的主要工作任务", ppr_extra="", run_kwargs=body_run))
+    task_line_count = 4 if tasks else 6
+    for line in wrap_taskbook_text(tasks, max_lines=task_line_count):
+        elements.append(taskbook_line_xml([taskbook_underlined_run(line, width=70)]))
+    elements.append(paragraph_xml("", ppr_extra=spacing_xml(line=360)))
+    elements.append(
+        taskbook_line_xml(
+            [run_text_xml("指   导   教  师：", **body_run), taskbook_underlined_run(teacher, width=52)]
+        )
+    )
+    elements.append(
+        taskbook_line_xml(
+            [run_text_xml("教研室（系）主任：", **body_run), taskbook_underlined_run(office_head, width=52)]
+        )
+    )
+    elements.append(
+        taskbook_line_xml(
+            [run_text_xml("学   生   签  名：", **body_run), taskbook_underlined_run(student_signature, width=52)]
+        )
+    )
+    elements.append(
+        taskbook_line_xml(
+            [run_text_xml("接受毕业论文(设计)任务日期：", **body_run), taskbook_underlined_run(accepted_date, width=39)]
+        )
+    )
+    elements.append(formatted_paragraph_xml("（注：本任务书由指导教师填写）", ppr_extra="", run_kwargs=note_run))
+    return elements
+
+
 def normalize_appendix_heading(text: str, appendix_index: int) -> str:
     cleaned = re.sub(r"^附录\s*[A-Z0-9]+\s*", "", text).strip()
     if cleaned:
@@ -2177,7 +2540,14 @@ def strip_heading_prefix(text: str) -> str:
     return stripped or text.strip()
 
 
-def heading_paragraph_xml(text: str, level: int, profile: dict[str, object], *, numbered: bool = True) -> str:
+def heading_paragraph_xml(
+    text: str,
+    level: int,
+    profile: dict[str, object],
+    *,
+    numbered: bool = True,
+    keep_with_next: bool = True,
+) -> str:
     if level == 1:
         style = profile.get("heading1")
     elif level == 2:
@@ -2190,19 +2560,47 @@ def heading_paragraph_xml(text: str, level: int, profile: dict[str, object], *, 
         # 范例实测：Heading2 实例覆盖样式，使 before=240(1行), after=120(0.5行), line=360(1.5倍)
         # 基础 styleId="2" 只有 before=100, after=50，不符合规范，此处显式覆盖
         if level == 2:
-            ppr_extra = spacing_xml(before=240, after=120, line=360)
+            ppr_extra = (
+                ("<w:keepNext/><w:keepLines/>" if keep_with_next else "")
+                + spacing_xml(before=240, after=120, line=360)
+                + indent_xml(left=0, first_line=0)
+            )
+            return paragraph_xml(heading_text, style=str(style) if style else None, align="left", ppr_extra=ppr_extra)
         elif level == 1:
-            ppr_extra = spacing_xml(line=240)
+            ppr_extra = spacing_xml(before_lines=80, before=0, line=240) + indent_xml(left=0, first_line=0)
         else:
-            ppr_extra = ""
+            ppr_extra = (
+                ("<w:keepNext/><w:keepLines/>" if keep_with_next else "")
+                + spacing_xml(before=120, line=360)
+                + indent_xml(left=0, first_line_chars=200, first_line=560)
+            )
+            return paragraph_xml(heading_text, style=str(style) if style else None, align="left", ppr_extra=ppr_extra)
         return paragraph_xml(heading_text, style=str(style) if style else None, ppr_extra=ppr_extra)
 
-    ppr_extra = ""
+    ppr_extra = '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="0"/></w:numPr>'
     if level == 1:
         ppr_extra += spacing_xml(line=240)
     elif level == 3:
-        # 规范：三级标题左起空两字符 (2 × 小四号 12pt = 480 twips)
-        ppr_extra += indent_xml(left=480)
+        # 规范：三级标题左起空两字符 (2 × 四号 14pt = 560 twips)
+        ppr_extra += (
+            ("<w:keepNext/><w:keepLines/>" if keep_with_next else "")
+            + spacing_xml(before=120, line=360)
+            + indent_xml(left=0, first_line_chars=200, first_line=560)
+        )
+        return paragraph_xml(text.strip(), style=str(style) if style else None, align="left", ppr_extra=ppr_extra)
+    return paragraph_xml(text.strip(), style=str(style) if style else None, ppr_extra=ppr_extra)
+
+
+def acknowledgement_heading_paragraph_xml(text: str, profile: dict[str, object]) -> str:
+    style = profile.get("heading1")
+    # The official sample keeps acknowledgement in the level-1/TOC family, but
+    # its heading sits at the front-matter vertical position instead of the
+    # lower reference-heading position. Override only paragraph spacing here.
+    ppr_extra = (
+        '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="0"/></w:numPr>'
+        '<w:snapToGrid w:val="0"/>'
+        + spacing_xml(before_lines=0, before=0, after_lines=200, after=480, line=240)
+    )
     return paragraph_xml(text.strip(), style=str(style) if style else None, ppr_extra=ppr_extra)
 
 
@@ -2220,7 +2618,7 @@ def native_style_profile() -> dict[str, object]:
         "table": STYLE_TABLE_TEXT,
         "normal_first_line_chars": 200,
         "normal_first_line": 480,
-        "normal_ppr_extra": spacing_xml(line=360),
+        "normal_ppr_extra": '<w:widowControl w:val="0"/>' + spacing_xml(line=360),
         "normal_run": {
             "font_ascii": "Times New Roman",
             "font_hansi": "Times New Roman",
@@ -2229,8 +2627,49 @@ def native_style_profile() -> dict[str, object]:
         },
         "caption": STYLE_CAPTION,
         "skip_reference_notes": True,
-        "strip_heading_numbers": False,
+        "strip_heading_numbers": True,
     }
+
+
+def numbering_xml() -> str:
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        f'<w:numbering xmlns:w="{W_NS}" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" '
+        'xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml" '
+        'xmlns:w16se="http://schemas.microsoft.com/office/word/2015/wordml/symex">'
+        '<w:abstractNum w:abstractNumId="0">'
+        '<w:multiLevelType w:val="multilevel"/>'
+        '<w:lvl w:ilvl="0">'
+        '<w:start w:val="1"/>'
+        '<w:numFmt w:val="decimal"/>'
+        f'<w:pStyle w:val="{STYLE_HEADING_1}"/>'
+        '<w:suff w:val="space"/>'
+        '<w:lvlText w:val="%1  "/>'
+        '<w:lvlJc w:val="left"/>'
+        '<w:pPr><w:ind w:left="0" w:hanging="0"/></w:pPr>'
+        '</w:lvl>'
+        '<w:lvl w:ilvl="1">'
+        '<w:start w:val="1"/>'
+        '<w:numFmt w:val="decimal"/>'
+        f'<w:pStyle w:val="{STYLE_HEADING_2}"/>'
+        '<w:suff w:val="space"/>'
+        '<w:lvlText w:val="%1.%2"/>'
+        '<w:lvlJc w:val="left"/>'
+        '<w:pPr><w:ind w:left="0" w:hanging="0"/></w:pPr>'
+        '</w:lvl>'
+        '<w:lvl w:ilvl="2">'
+        '<w:start w:val="1"/>'
+        '<w:numFmt w:val="decimal"/>'
+        f'<w:pStyle w:val="{STYLE_HEADING_3}"/>'
+        '<w:suff w:val="space"/>'
+        '<w:lvlText w:val="%1.%2.%3"/>'
+        '<w:lvlJc w:val="left"/>'
+        '<w:pPr><w:ind w:left="0" w:hanging="0"/></w:pPr>'
+        '</w:lvl>'
+        '</w:abstractNum>'
+        '<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>'
+        '</w:numbering>'
+    )
 
 
 def build_document_elements(
@@ -2257,14 +2696,30 @@ def build_document_elements(
     current_appendix_index = 0
     formula_counters: dict[str, int] = {}
     page_break_marker = page_break_xml()
+    chapter_section_break_count = 0
     pending_table_split: list[int] | None = None
     last_table_caption_text: str | None = None
 
     profile = profile or native_style_profile()
 
-    def append_page_break() -> None:
-        if elements and elements[-1] != page_break_marker:
-            elements.append(page_break_marker)
+    def is_chapter_section_break(element: str) -> bool:
+        return "<w:sectPr>" in element and 'w:type w:val="nextPage"' in element
+
+    def append_chapter_page_break() -> None:
+        nonlocal chapter_section_break_count
+        if elements and elements[-1] != page_break_marker and not is_chapter_section_break(elements[-1]):
+            if chapter_section_break_count == 0:
+                sect_pr = native_sect_pr_xml(
+                    section_type="nextPage",
+                    with_header=True,
+                    footer_kind="page",
+                    page_number_format="decimal",
+                    page_number_start=1,
+                )
+            else:
+                sect_pr = native_sect_pr_xml(section_type="nextPage", with_header=True, footer_kind="page")
+            elements.append(section_break_paragraph_xml(sect_pr))
+            chapter_section_break_count += 1
 
     def next_formula_number() -> str | None:
         if in_appendix and current_appendix_index > 0:
@@ -2280,7 +2735,7 @@ def build_document_elements(
         nonlocal paragraph_buffer, last_table_caption_text
         if not paragraph_buffer:
             return
-        paragraph = " ".join(line.strip() for line in paragraph_buffer).strip()
+        paragraph = join_soft_wrapped_lines(paragraph_buffer).strip()
         paragraph_buffer = []
         if not paragraph:
             return
@@ -2456,7 +2911,14 @@ def build_document_elements(
 
         if re.fullmatch(r"-{3,}|\*{3,}", stripped):
             flush_paragraph()
-            elements.append(page_break_xml())
+            next_i = i + 1
+            while next_i < len(lines) and not lines[next_i].strip():
+                next_i += 1
+            next_heading_match = re.match(r"^(#{1,6})\s+(.*)$", lines[next_i]) if next_i < len(lines) else None
+            if next_heading_match and len(next_heading_match.group(1)) == 1:
+                append_chapter_page_break()
+            else:
+                elements.append(page_break_xml())
             i += 1
             continue
 
@@ -2488,20 +2950,19 @@ def build_document_elements(
 
             if current_top_heading == "附录" and raw_level == 2:
                 current_appendix_index += 1
-                append_page_break()
-                elements.append(
-                    heading_paragraph_xml(
-                        normalize_appendix_heading(heading_text, current_appendix_index),
-                        1,
-                        profile,
-                        numbered=False,
-                    )
+                append_chapter_page_break()
+                appendix_heading = heading_paragraph_xml(
+                    normalize_appendix_heading(heading_text, current_appendix_index),
+                    1,
+                    profile,
+                    numbered=False,
                 )
+                elements.append(appendix_heading)
                 i += 1
                 continue
 
             if raw_level == 1:
-                append_page_break()
+                append_chapter_page_break()
 
             is_unnumbered = False
             if heading_text in {"参考文献", "致谢", "附录"}:
@@ -2513,14 +2974,18 @@ def build_document_elements(
             if heading_text == "致谢":
                 display_heading_text = "致  谢"
 
-            elements.append(
-                heading_paragraph_xml(
+            previous_is_caption = bool(elements and f'w:pStyle w:val="{STYLE_CAPTION}"' in elements[-1])
+            if heading_text == "致谢" and raw_level == 1:
+                heading_xml = acknowledgement_heading_paragraph_xml(display_heading_text, profile)
+            else:
+                heading_xml = heading_paragraph_xml(
                     display_heading_text,
                     level,
                     profile,
                     numbered=not is_unnumbered,
+                    keep_with_next=not previous_is_caption,
                 )
-            )
+            elements.append(heading_xml)
             i += 1
             continue
 
@@ -2598,29 +3063,46 @@ def build_document_elements(
             )
         )
 
-    return elements
+    return elements, chapter_section_break_count > 0
 
 
-def native_sect_pr_xml(*, with_header_footer: bool = False, section_type: str | None = None) -> str:
+def native_sect_pr_xml(
+    *,
+    with_header: bool = False,
+    footer_kind: str | None = None,
+    section_type: str | None = None,
+    page_number_format: str | None = None,
+    page_number_start: int | None = None,
+) -> str:
     parts = ["<w:sectPr>"]
     if section_type:
         parts.append(f'<w:type w:val="{section_type}"/>')
-    if with_header_footer:
+    if with_header:
         parts.append(f'<w:headerReference w:type="default" r:id="{REL_ID_HEADER}"/>')
-        parts.append(f'<w:footerReference w:type="default" r:id="{REL_ID_FOOTER}"/>')
-    parts.append('<w:pgSz w:w="11906" w:h="16838"/>')
+    if footer_kind == "empty":
+        parts.append(f'<w:footerReference w:type="default" r:id="{REL_ID_EMPTY_FOOTER}"/>')
+    elif footer_kind == "page":
+        parts.append(f'<w:footerReference w:type="default" r:id="{REL_ID_PAGE_FOOTER}"/>')
+    if page_number_format or page_number_start is not None:
+        attrs: list[str] = []
+        if page_number_format:
+            attrs.append(f'w:fmt="{page_number_format}"')
+        if page_number_start is not None:
+            attrs.append(f'w:start="{page_number_start}"')
+        parts.append(f"<w:pgNumType {' '.join(attrs)}/>")
+    parts.append('<w:pgSz w:w="11907" w:h="16840"/>')
     parts.append(
-        '<w:pgMar w:top="1440" w:right="1440" w:bottom="1440" '
-        'w:left="1440" w:header="720" w:footer="720" w:gutter="0"/>'
+        '<w:pgMar w:top="1440" w:right="1797" w:bottom="1440" '
+        'w:left="1797" w:header="850" w:footer="992" w:gutter="0"/>'
     )
-    parts.append('<w:cols w:space="425"/>')
-    parts.append('<w:docGrid w:type="lines" w:linePitch="312"/>')
+    parts.append('<w:cols w:space="720"/>')
+    parts.append('<w:docGrid w:linePitch="384"/>')
     parts.append("</w:sectPr>")
     return "".join(parts)
 
 
 def default_sect_pr_xml() -> str:
-    return native_sect_pr_xml(with_header_footer=True)
+    return native_sect_pr_xml(with_header=True, footer_kind="page", page_number_format="decimal", page_number_start=1)
 
 
 def document_xml(elements: list[str], sect_pr: str | None = None) -> str:
@@ -2640,24 +3122,27 @@ def styles_xml() -> str:
         "<w:docDefaults>"
         '<w:rPrDefault><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="宋体"/>'
         '<w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:rPrDefault>'
-        '<w:pPrDefault><w:pPr><w:spacing w:after="0" w:line="360" w:lineRule="auto"/></w:pPr></w:pPrDefault>'
+        "<w:pPrDefault/>"
         "</w:docDefaults>"
-        '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>'
+        '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/>'
+        '<w:pPr><w:widowControl w:val="0"/><w:jc w:val="both"/></w:pPr>'
+        '<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="宋体" w:cs="Times New Roman"/>'
+        '<w:kern w:val="2"/><w:sz w:val="21"/><w:szCs w:val="24"/></w:rPr></w:style>'
         f'<w:style w:type="paragraph" w:styleId="{STYLE_BODY}"><w:name w:val="XJU Body"/><w:basedOn w:val="Normal"/><w:qFormat/>'
-        '<w:pPr><w:spacing w:after="0" w:line="360" w:lineRule="auto"/><w:ind w:firstLineChars="200" w:firstLine="480"/></w:pPr>'
-        '<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="宋体"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:style>'
-        f'<w:style w:type="paragraph" w:styleId="{STYLE_HEADING_1}"><w:name w:val="XJU Heading 1"/><w:basedOn w:val="Normal"/><w:qFormat/>'
-        '<w:pPr><w:jc w:val="center"/><w:spacing w:before="720" w:after="480" w:line="240" w:lineRule="auto"/><w:outlineLvl w:val="0"/></w:pPr>'
-        '<w:rPr><w:rFonts w:ascii="黑体" w:hAnsi="黑体" w:eastAsia="黑体"/><w:b/><w:bCs/><w:sz w:val="32"/><w:szCs w:val="32"/></w:rPr></w:style>'
-        f'<w:style w:type="paragraph" w:styleId="{STYLE_HEADING_2}"><w:name w:val="XJU Heading 2"/><w:basedOn w:val="Normal"/><w:qFormat/>'
-        '<w:pPr><w:spacing w:before="240" w:after="120" w:line="360" w:lineRule="auto"/><w:outlineLvl w:val="1"/></w:pPr>'
-        '<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="黑体"/><w:b/><w:bCs/><w:sz w:val="28"/><w:szCs w:val="28"/></w:rPr></w:style>'
-        f'<w:style w:type="paragraph" w:styleId="{STYLE_HEADING_3}"><w:name w:val="XJU Heading 3"/><w:basedOn w:val="Normal"/><w:qFormat/>'
-        '<w:pPr><w:spacing w:before="120" w:after="60" w:line="360" w:lineRule="auto"/><w:outlineLvl w:val="2"/></w:pPr>'
-        '<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="黑体"/><w:b/><w:bCs/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:style>'
+        '<w:pPr><w:widowControl w:val="0"/><w:jc w:val="both"/><w:spacing w:after="0" w:line="360" w:lineRule="auto"/><w:ind w:firstLineChars="200" w:firstLine="480"/></w:pPr>'
+        '<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="宋体"/><w:kern w:val="2"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:style>'
+        f'<w:style w:type="paragraph" w:styleId="{STYLE_HEADING_1}"><w:name w:val="XJU Heading 1"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/>'
+	        '<w:pPr><w:keepNext/><w:keepLines/><w:numPr><w:numId w:val="1"/></w:numPr><w:spacing w:beforeLines="300" w:before="720" w:afterLines="200" w:after="480" w:line="288" w:lineRule="auto"/><w:jc w:val="center"/><w:outlineLvl w:val="0"/></w:pPr>'
+        '<w:rPr><w:bCs/><w:snapToGrid w:val="0"/><w:kern w:val="44"/><w:sz w:val="32"/><w:szCs w:val="44"/></w:rPr></w:style>'
+        f'<w:style w:type="paragraph" w:styleId="{STYLE_HEADING_2}"><w:name w:val="XJU Heading 2"/><w:basedOn w:val="{STYLE_HEADING_1}"/><w:next w:val="Normal"/><w:qFormat/>'
+        '<w:pPr><w:numPr><w:ilvl w:val="1"/></w:numPr><w:spacing w:beforeLines="100" w:before="100" w:afterLines="50" w:after="50"/><w:jc w:val="both"/><w:outlineLvl w:val="1"/></w:pPr>'
+        '<w:rPr><w:bCs w:val="0"/><w:sz w:val="30"/></w:rPr></w:style>'
+        f'<w:style w:type="paragraph" w:styleId="{STYLE_HEADING_3}"><w:name w:val="XJU Heading 3"/><w:basedOn w:val="{STYLE_HEADING_2}"/><w:next w:val="Normal"/><w:qFormat/>'
+        '<w:pPr><w:numPr><w:ilvl w:val="2"/></w:numPr><w:spacing w:beforeLines="50" w:before="50" w:afterLines="0" w:after="0"/><w:outlineLvl w:val="2"/></w:pPr>'
+        '<w:rPr><w:bCs/><w:sz w:val="28"/></w:rPr></w:style>'
         f'<w:style w:type="paragraph" w:styleId="{STYLE_FRONT_HEADING}"><w:name w:val="XJU Front Heading"/><w:basedOn w:val="Normal"/><w:qFormat/>'
-        '<w:pPr><w:jc w:val="center"/><w:spacing w:before="720" w:after="480" w:line="240" w:lineRule="auto"/></w:pPr>'
-        '<w:rPr><w:rFonts w:ascii="黑体" w:hAnsi="黑体" w:eastAsia="黑体"/><w:b/><w:bCs/><w:sz w:val="32"/><w:szCs w:val="32"/></w:rPr></w:style>'
+        '<w:pPr><w:jc w:val="center"/><w:spacing w:beforeLines="300" w:before="720" w:afterLines="200" w:after="480" w:line="240" w:lineRule="auto"/></w:pPr>'
+        '<w:rPr><w:rFonts w:ascii="黑体" w:hAnsi="黑体" w:eastAsia="黑体"/><w:sz w:val="32"/><w:szCs w:val="32"/></w:rPr></w:style>'
         f'<w:style w:type="paragraph" w:styleId="{STYLE_TOC_FIELD}"><w:name w:val="XJU TOC Field"/><w:basedOn w:val="Normal"/>'
         '<w:pPr><w:spacing w:after="0" w:line="288" w:lineRule="auto"/></w:pPr>'
         '<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="宋体"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:style>'
@@ -2670,11 +3155,17 @@ def styles_xml() -> str:
         '<w:style w:type="paragraph" w:styleId="TOC3"><w:name w:val="toc 3"/><w:basedOn w:val="Normal"/>'
         '<w:pPr><w:tabs><w:tab w:val="right" w:leader="dot" w:pos="8313"/></w:tabs><w:ind w:left="480"/><w:spacing w:after="0" w:line="288" w:lineRule="auto"/></w:pPr>'
         '<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="宋体"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:style>'
-        f'<w:style w:type="paragraph" w:styleId="{STYLE_CAPTION}"><w:name w:val="XJU Caption"/><w:basedOn w:val="{STYLE_BODY}"/>'
-        '<w:pPr><w:jc w:val="center"/><w:spacing w:before="0" w:after="0" w:line="360" w:lineRule="auto"/></w:pPr>'
+        f'<w:style w:type="paragraph" w:styleId="{STYLE_HEADER}"><w:name w:val="XJU Header"/><w:basedOn w:val="Normal"/>'
+        '<w:pPr><w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="auto"/></w:pBdr><w:tabs><w:tab w:val="center" w:pos="4153"/><w:tab w:val="right" w:pos="8306"/></w:tabs><w:snapToGrid w:val="0"/><w:jc w:val="center"/></w:pPr>'
+        '<w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:style>'
+        f'<w:style w:type="paragraph" w:styleId="{STYLE_FOOTER}"><w:name w:val="XJU Footer"/><w:basedOn w:val="Normal"/>'
+        '<w:pPr><w:tabs><w:tab w:val="center" w:pos="4153"/><w:tab w:val="right" w:pos="8306"/></w:tabs><w:snapToGrid w:val="0"/><w:spacing w:line="288" w:lineRule="auto"/><w:ind w:firstLineChars="200" w:firstLine="200"/><w:jc w:val="left"/></w:pPr>'
+        '<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="宋体"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:style>'
+        f'<w:style w:type="paragraph" w:styleId="{STYLE_CAPTION}"><w:name w:val="XJU Caption"/><w:basedOn w:val="Normal"/>'
+        '<w:pPr><w:jc w:val="center"/><w:spacing w:beforeLines="0" w:before="0" w:afterLines="0" w:after="0" w:line="360" w:lineRule="auto"/><w:ind w:left="0" w:firstLine="0"/></w:pPr>'
         '<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="宋体"/><w:b/><w:bCs/><w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr></w:style>'
-        f'<w:style w:type="paragraph" w:styleId="{STYLE_REFERENCE}"><w:name w:val="XJU Reference"/><w:basedOn w:val="{STYLE_BODY}"/>'
-        '<w:pPr><w:spacing w:after="0" w:line="360" w:lineRule="auto"/><w:ind w:left="420" w:hanging="420"/></w:pPr>'
+        f'<w:style w:type="paragraph" w:styleId="{STYLE_REFERENCE}"><w:name w:val="XJU Reference"/><w:basedOn w:val="Normal"/>'
+        '<w:pPr><w:spacing w:line="360" w:lineRule="auto"/></w:pPr>'
         '<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="宋体"/><w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr></w:style>'
         f'<w:style w:type="paragraph" w:styleId="{STYLE_QUOTE}"><w:name w:val="XJU Quote"/><w:basedOn w:val="{STYLE_BODY}"/>'
         '<w:pPr><w:ind w:left="720"/><w:spacing w:after="120" w:line="360" w:lineRule="auto"/></w:pPr><w:rPr><w:i/></w:rPr></w:style>'
@@ -2706,10 +3197,12 @@ def content_types_xml(image_extensions: set[str] | None = None) -> str:
         f'{"".join(defaults)}'
         '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
         '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'
+        '<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>'
         '<Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>'
         '<Override PartName="/word/fontTable.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml"/>'
         '<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>'
         '<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>'
+        '<Override PartName="/word/footer2.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>'
         '<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>'
         '<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>'
         "</Types>"
@@ -2730,10 +3223,12 @@ def rels_xml() -> str:
 def document_rels_xml(media_manager: MediaManager | None = None) -> str:
     relationships = [
         f'<Relationship Id="{REL_ID_STYLES}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>',
+        f'<Relationship Id="{REL_ID_NUMBERING}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>',
         f'<Relationship Id="{REL_ID_SETTINGS}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>',
         f'<Relationship Id="{REL_ID_FONT_TABLE}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable" Target="fontTable.xml"/>',
         f'<Relationship Id="{REL_ID_HEADER}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>',
-        f'<Relationship Id="{REL_ID_FOOTER}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>',
+        f'<Relationship Id="{REL_ID_EMPTY_FOOTER}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>',
+        f'<Relationship Id="{REL_ID_PAGE_FOOTER}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer2.xml"/>',
     ]
     if media_manager:
         for item in media_manager.images:
@@ -2753,18 +3248,59 @@ def settings_xml() -> str:
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         f'<w:settings xmlns:w="{W_NS}">'
         '<w:updateFields w:val="true"/>'
+        '<w:zoom w:percent="100"/>'
+        "<w:bordersDoNotSurroundHeader/>"
+        "<w:bordersDoNotSurroundFooter/>"
         '<w:defaultTabStop w:val="420"/>'
-        '<w:characterSpacingControl w:val="doNotCompress"/>'
+        '<w:drawingGridHorizontalSpacing w:val="105"/>'
+        '<w:drawingGridVerticalSpacing w:val="156"/>'
+        '<w:displayHorizontalDrawingGridEvery w:val="0"/>'
+        '<w:displayVerticalDrawingGridEvery w:val="2"/>'
+        '<w:characterSpacingControl w:val="compressPunctuation"/>'
         '<w:themeFontLang w:val="en-US" w:eastAsia="zh-CN"/>'
-        '<w:compat><w:compatSetting w:name="compatibilityMode" '
-        'w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat>'
+        "<w:compat>"
+        "<w:spaceForUL/>"
+        "<w:balanceSingleByteDoubleByteWidth/>"
+        "<w:doNotLeaveBackslashAlone/>"
+        "<w:ulTrailSpace/>"
+        "<w:doNotExpandShiftReturn/>"
+        "<w:adjustLineHeightInTable/>"
+        "<w:useFELayout/>"
+        '<w:compatSetting w:name="compatibilityMode" '
+        'w:uri="http://schemas.microsoft.com/office/word" w:val="15"/>'
+        '<w:compatSetting w:name="overrideTableStyleFontSizeAndJustification" '
+        'w:uri="http://schemas.microsoft.com/office/word" w:val="1"/>'
+        '<w:compatSetting w:name="enableOpenTypeFeatures" '
+        'w:uri="http://schemas.microsoft.com/office/word" w:val="1"/>'
+        '<w:compatSetting w:name="doNotFlipMirrorIndents" '
+        'w:uri="http://schemas.microsoft.com/office/word" w:val="1"/>'
+        '<w:compatSetting w:name="differentiateMultirowTableHeaders" '
+        'w:uri="http://schemas.microsoft.com/office/word" w:val="1"/>'
+        "</w:compat>"
         "</w:settings>"
     )
 
 
 def font_table_xml() -> str:
-    fonts = ["Times New Roman", "宋体", "黑体", "楷体_GB2312", "Cambria Math", "Courier New", "等线"]
-    body = "".join(f'<w:font w:name="{escape(font)}"/>' for font in fonts)
+    fonts = [
+        '<w:font w:name="Times New Roman"/>',
+        (
+            '<w:font w:name="宋体"><w:altName w:val="SimSun"/>'
+            '<w:charset w:val="86"/><w:family w:val="auto"/><w:pitch w:val="variable"/></w:font>'
+        ),
+        (
+            '<w:font w:name="黑体"><w:altName w:val="SimHei"/>'
+            '<w:charset w:val="86"/><w:family w:val="modern"/><w:pitch w:val="fixed"/></w:font>'
+        ),
+        (
+            '<w:font w:name="楷体_GB2312"><w:altName w:val="楷体"/>'
+            '<w:charset w:val="86"/><w:family w:val="modern"/><w:pitch w:val="default"/></w:font>'
+        ),
+        '<w:font w:name="Cambria Math"/>',
+        '<w:font w:name="Courier New"/>',
+        '<w:font w:name="等线"><w:altName w:val="DengXian"/></w:font>',
+    ]
+    body = "".join(fonts)
     return (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         f'<w:fonts xmlns:w="{W_NS}">{body}</w:fonts>'
@@ -2774,17 +3310,20 @@ def font_table_xml() -> str:
 def header_xml() -> str:
     ppr_extra = (
         "<w:pBdr>"
+        '<w:top w:val="none" w:sz="0" w:space="1" w:color="auto"/>'
+        '<w:left w:val="none" w:sz="0" w:space="4" w:color="auto"/>'
         '<w:bottom w:val="single" w:sz="4" w:space="1" w:color="auto"/>'
+        '<w:right w:val="none" w:sz="0" w:space="4" w:color="auto"/>'
         "</w:pBdr>"
-        + spacing_xml(after=0, line=240)
     )
     paragraph = formatted_paragraph_xml(
         "新疆大学本科毕业论文（设计）",
+        style=STYLE_HEADER,
         align="center",
         ppr_extra=ppr_extra,
         run_kwargs={
-            "font_ascii": "Times New Roman",
-            "font_hansi": "Times New Roman",
+            "font_ascii": "宋体",
+            "font_hansi": "宋体",
             "font_eastasia": "宋体",
             "size": 18,
         },
@@ -2795,21 +3334,29 @@ def header_xml() -> str:
     )
 
 
-def footer_xml() -> str:
+def empty_footer_xml() -> str:
+    paragraph = paragraph_xml("", style=STYLE_FOOTER, first_line=0, first_line_chars=0)
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        f'<w:ftr xmlns:w="{W_NS}" xmlns:r="{R_NS}">{paragraph}</w:ftr>'
+    )
+
+
+def page_footer_xml() -> str:
     runs = [
         field_char_run_xml("begin"),
-        instr_text_run_xml(" PAGE "),
+        instr_text_run_xml("PAGE   \\* MERGEFORMAT"),
         field_char_run_xml("separate"),
         run_text_xml(
             "1",
             font_ascii="Times New Roman",
             font_hansi="Times New Roman",
             font_eastasia="宋体",
-            size=20,
+            size=18,
         ),
         field_char_run_xml("end"),
     ]
-    paragraph = paragraph_xml(runs=runs, align="center", ppr_extra=spacing_xml(after=0, line=240))
+    paragraph = paragraph_xml(runs=runs, style=STYLE_FOOTER, align="center", first_line=0, first_line_chars=0)
     return (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         f'<w:ftr xmlns:w="{W_NS}" xmlns:r="{R_NS}">{paragraph}</w:ftr>'
@@ -2853,9 +3400,24 @@ def build_native_document(
     thesis_title = cover_info.get("论文题目") or markdown_title or "新疆大学本科毕业论文"
     profile = native_style_profile()
 
-    cover_sect = native_sect_pr_xml(section_type="nextPage")
-    front_sect = native_sect_pr_xml(section_type="nextPage")
-    body_sect = native_sect_pr_xml(with_header_footer=True)
+    # Keep the cover and its blank verso page in an empty-footer section. The
+    # second page break carries the section properties, so the declaration starts
+    # on physical page 3 while Roman numbering still starts at I.
+    cover_sect = native_sect_pr_xml(with_header=True, footer_kind="empty", section_type="continuous")
+    front_sect = native_sect_pr_xml(
+        with_header=True,
+        footer_kind="page",
+        section_type="nextPage",
+        page_number_format="upperRoman",
+        page_number_start=1,
+    )
+    body_start_sect = native_sect_pr_xml(
+        with_header=True,
+        footer_kind="page",
+        page_number_format="decimal",
+        page_number_start=1,
+    )
+    body_continue_sect = native_sect_pr_xml(with_header=True, footer_kind="page")
 
     elements: list[str] = []
     elements.extend(
@@ -2866,11 +3428,12 @@ def build_native_document(
             media_manager=media_manager,
         )
     )
-    elements.append(section_break_paragraph_xml(cover_sect))
+    elements.append(page_break_xml())
+    elements.append(add_section_to_paragraph_xml(page_break_xml(), cover_sect))
 
     declaration = front_sections.get("声明", "").strip()
     if declaration:
-        elements.append(build_front_heading("声  明"))
+        elements.append(build_front_heading("声  明", statement=True))
         statement_paragraphs, author_value, date_value = split_statement_content(declaration)
         for paragraph in statement_paragraphs:
             elements.append(
@@ -2880,14 +3443,36 @@ def build_native_document(
                     reference_anchors=reference_anchors,
                 )
             )
-        elements.append(build_blank_paragraph())
-        elements.append(build_statement_signature_paragraph("作者签名：", author_value))
+        signature_image = None
+        signature_alt = "电子签名"
+        inline_signature = parse_inline_image_value(author_value)
+        if inline_signature is not None and media_manager is not None and markdown_dir is not None:
+            signature_alt, signature_target = inline_signature
+            signature_image = media_manager.register_image(markdown_dir / signature_target)
+            if signature_image is not None:
+                author_value = ""
+        signature_blank_count = 10 if signature_image is not None else 14
+        for _ in range(signature_blank_count):
+            elements.append(build_blank_paragraph(run_size=24))
+        elements.append(
+            build_statement_signature_paragraph(
+                "作者签名：",
+                author_value,
+                signature_image=signature_image,
+                media_manager=media_manager,
+                signature_alt=signature_alt or "电子签名",
+            )
+        )
         elements.append(build_statement_signature_paragraph("签字日期：", date_value, is_date=True))
         elements.append(page_break_xml())
 
+    taskbook = front_sections.get("任务书", "").strip()
+    if taskbook:
+        elements.extend(build_taskbook_elements(taskbook, cover_info))
+
     cn_abstract, cn_keywords = extract_abstract_and_keywords(front_sections.get("摘要", ""), "关键词：")
     if cn_abstract or cn_keywords:
-        elements.append(build_front_heading("摘  要"))
+        elements.append(build_front_heading("摘  要", page_break_before=bool(taskbook)))
         for paragraph in cn_abstract:
             elements.append(
                 build_body_paragraph(
@@ -2921,20 +3506,19 @@ def build_native_document(
         elements.append(page_break_xml())
 
     elements.append(build_front_heading("目  录", toc=True))
-    elements.append(toc_field_paragraph_xml())
-    elements.append(section_break_paragraph_xml(front_sect))
+    elements.append(add_section_to_paragraph_xml(toc_field_paragraph_xml(), front_sect))
 
-    elements.extend(
-        build_document_elements(
-            body_text,
-            profile=profile,
-            treat_first_heading_as_title=False,
-            math_converter=math_converter,
-            reference_anchors=reference_anchors,
-            markdown_dir=markdown_dir,
-            media_manager=media_manager,
-        )
+    body_elements, body_has_section_breaks = build_document_elements(
+        body_text,
+        profile=profile,
+        treat_first_heading_as_title=False,
+        math_converter=math_converter,
+        reference_anchors=reference_anchors,
+        markdown_dir=markdown_dir,
+        media_manager=media_manager,
     )
+    elements.extend(body_elements)
+    body_sect = body_continue_sect if body_has_section_breaks else body_start_sect
     return elements, body_sect, thesis_title
 
 
@@ -2969,10 +3553,12 @@ def write_docx(
         zf.writestr("docProps/app.xml", app_xml())
         zf.writestr("word/document.xml", document_xml(elements, sect_pr=sect_pr))
         zf.writestr("word/styles.xml", styles_xml())
+        zf.writestr("word/numbering.xml", numbering_xml())
         zf.writestr("word/settings.xml", settings_xml())
         zf.writestr("word/fontTable.xml", font_table_xml())
         zf.writestr("word/header1.xml", header_xml())
-        zf.writestr("word/footer1.xml", footer_xml())
+        zf.writestr("word/footer1.xml", empty_footer_xml())
+        zf.writestr("word/footer2.xml", page_footer_xml())
         zf.writestr("word/_rels/document.xml.rels", document_rels_xml(media_manager))
         for image in media_manager.images:
             zf.writestr(f"word/{image.part_name}", image.source_path.read_bytes())
@@ -2983,7 +3569,8 @@ def write_docx(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Convert a Xinjiang University thesis-style Markdown document to a native OOXML DOCX."
+        prog="xju_thesis_md2docx.py",
+        description="Convert a Xinjiang University thesis-style Markdown document to an OOXML DOCX."
     )
     parser.add_argument("input", type=Path)
     parser.add_argument("output", nargs="?", type=Path, default=None)
