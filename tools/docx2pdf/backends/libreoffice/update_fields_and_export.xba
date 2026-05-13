@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE script:module PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "module.dtd">
+<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Module1" script:language="StarBasic">REM  *****  BASIC  *****
+
+Sub ExportPdf()
+    Dim inputUrl As String
+    Dim outputUrl As String
+    inputUrl = Environ("XJU_LO_INPUT_URL")
+    outputUrl = Environ("XJU_LO_OUTPUT_URL")
+    If inputUrl = "" Or outputUrl = "" Then
+        End
+    End If
+
+    Dim loadProps(1) As New com.sun.star.beans.PropertyValue
+    loadProps(0).Name = "Hidden"
+    loadProps(0).Value = True
+    loadProps(1).Name = "UpdateDocMode"
+    loadProps(1).Value = 3
+
+    Dim doc As Object
+    doc = StarDesktop.loadComponentFromURL(inputUrl, "_blank", 0, loadProps())
+    If IsNull(doc) Then End
+
+    On Error Resume Next
+    doc.updateLinks()
+
+    Dim indexes As Object
+    Dim idx As Object
+    Dim i As Integer
+    indexes = doc.getDocumentIndexes()
+    For i = 0 To indexes.getCount() - 1
+        idx = indexes.getByIndex(i)
+        idx.update()
+    Next i
+
+    Dim fields As Object
+    Dim enumFields As Object
+    Dim field As Object
+    fields = doc.getTextFields()
+    enumFields = fields.createEnumeration()
+    Do While enumFields.hasMoreElements()
+        field = enumFields.nextElement()
+        field.update()
+    Loop
+    On Error GoTo 0
+
+    Dim pdfProps(0) As New com.sun.star.beans.PropertyValue
+    pdfProps(0).Name = "FilterName"
+    pdfProps(0).Value = "writer_pdf_Export"
+    doc.storeToURL(outputUrl, pdfProps())
+    doc.close(True)
+End Sub
+</script:module>

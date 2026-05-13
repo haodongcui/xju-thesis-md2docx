@@ -1,0 +1,239 @@
+from __future__ import annotations
+
+from ..constants import BODY_TEXT_CENTER_TWIPS, BODY_TEXT_WIDTH_TWIPS, CAPTION_PATTERN, INLINE_CITATION_PATTERN, STYLE_TOC_FIELD
+from ..inline import split_inline_code, split_inline_math
+from ..math.converter import MathConverter
+from .text import citation_text_runs, inline_code_run_xml, text_runs
+from .xml import (
+    field_char_run_xml,
+    indent_xml,
+    instr_text_run_xml,
+    run_text_xml,
+    spacing_xml,
+    tab_run_xml,
+    xml_text,
+)
+
+
+def paragraph_with_inline_math_xml(
+    text: str,
+    *,
+    style: str | None = None,
+    align: str | None = None,
+    ppr_extra: str = "",
+    first_line_chars: int | None = None,
+    first_line: int | None = None,
+    preserve_breaks: bool = False,
+    run_kwargs: dict[str, object] | None = None,
+    math_converter: MathConverter | None = None,
+    reference_anchors: dict[str, str] | None = None,
+) -> str:
+    code_segments = split_inline_code(text)
+    has_code = any(kind == "code" for kind, _ in code_segments)
+    has_math = any(
+        kind == "math"
+        for segment_kind, segment_text in code_segments
+        if segment_kind == "text"
+        for kind, _ in split_inline_math(segment_text)
+    )
+    has_citation = any(
+        bool(reference_anchors) and bool(INLINE_CITATION_PATTERN.search(segment_text))
+        for segment_kind, segment_text in code_segments
+        if segment_kind == "text"
+    )
+    if not has_code and not has_math and not has_citation:
+        return formatted_paragraph_xml(
+            text,
+            style=style,
+            align=align,
+            ppr_extra=ppr_extra,
+            first_line_chars=first_line_chars,
+            first_line=first_line,
+            preserve_breaks=preserve_breaks,
+            run_kwargs=run_kwargs,
+        )
+
+    run_kwargs = run_kwargs or {}
+    runs: list[str] = []
+    code_size = int(run_kwargs.get("size")) if run_kwargs.get("size") else None
+    for segment_kind, segment_text in code_segments:
+        if segment_kind == "code":
+            runs.append(inline_code_run_xml(segment_text, size=code_size))
+            continue
+        for kind, value in split_inline_math(segment_text):
+            if kind == "text":
+                runs.extend(citation_text_runs(value, run_kwargs=run_kwargs, reference_anchors=reference_anchors))
+                continue
+            omml = math_converter.get(value, display_mode=False) if math_converter else None
+            if omml:
+                runs.append(omml)
+            else:
+                runs.append(run_text_xml(f"${value}$", **run_kwargs))
+
+    return paragraph_xml(
+        style=style,
+        align=align,
+        runs=runs,
+        ppr_extra=ppr_extra,
+        first_line_chars=first_line_chars,
+        first_line=first_line,
+    )
+
+
+def math_paragraph_xml(
+    latex: str,
+    *,
+    style: str | None = None,
+    align: str | None = None,
+    math_converter: MathConverter | None = None,
+    equation_number: str | None = None,
+) -> str:
+    # Give display equations a bit more breathing room than normal body text and
+    # disable document-grid snapping so taller formulas are not visually cramped.
+    math_ppr_extra = '<w:snapToGrid w:val="0"/>' + spacing_xml(before=120, after=120, line=360)
+    if equation_number:
+        math_ppr_extra += (
+            "<w:tabs>"
+            f'<w:tab w:val="center" w:pos="{BODY_TEXT_CENTER_TWIPS}"/>'
+            f'<w:tab w:val="right" w:pos="{BODY_TEXT_WIDTH_TWIPS}"/>'
+            "</w:tabs>"
+        )
+        runs: list[str] = [tab_run_xml()]
+        if math_converter:
+            omml = math_converter.get(latex, display_mode=True)
+            if omml:
+                runs.append(omml)
+            else:
+                runs.append(run_text_xml(latex))
+        else:
+            runs.append(run_text_xml(latex))
+        runs.append(tab_run_xml())
+        runs.append(
+            run_text_xml(
+                equation_number,
+                font_ascii="Times New Roman",
+                font_hansi="Times New Roman",
+                font_eastasia="宋体",
+                size=24,
+            )
+        )
+        return paragraph_xml(
+            style=style,
+            align=align,
+            runs=runs,
+            ppr_extra=math_ppr_extra,
+            first_line_chars=0,
+            first_line=0,
+        )
+    if math_converter:
+        omml = math_converter.get(latex, display_mode=True)
+        if omml:
+            return paragraph_xml(style=style, align=align, runs=[omml], ppr_extra=math_ppr_extra)
+    return paragraph_xml(latex, style=style, align=align, ppr_extra=math_ppr_extra)
+
+
+def is_caption_paragraph(text: str) -> bool:
+    candidate = text.strip()
+    if not CAPTION_PATTERN.match(candidate):
+        return False
+    # 真正的题注应是标题式短语，不应包含中文句号。正文里以
+    # "图/表 X-Y" 开头并继续展开说明的段落不能套用题注格式。
+    return not any(mark in candidate for mark in ("。", "．"))
+
+
+def paragraph_xml(
+    text: str | None = None,
+    *,
+    style: str | None = None,
+    align: str | None = None,
+    preserve_breaks: bool = False,
+    runs: list[str] | None = None,
+    ppr_extra: str = "",
+    first_line_chars: int | None = None,
+    first_line: int | None = None,
+) -> str:
+    ppr: list[str] = []
+    if style:
+        ppr.append(f'<w:pStyle w:val="{style}"/>')
+    if align:
+        ppr.append(f'<w:jc w:val="{align}"/>')
+    indent = indent_xml(first_line_chars=first_line_chars, first_line=first_line)
+    if indent:
+        ppr.append(indent)
+    if ppr_extra:
+        ppr.append(ppr_extra)
+    ppr_xml = f"<w:pPr>{''.join(ppr)}</w:pPr>" if ppr else ""
+
+    if runs is None:
+        value = text or ""
+        if preserve_breaks and "\n" in value:
+            body = "".join(text_runs(value, preserve_breaks=True))
+        else:
+            body = f"<w:r>{xml_text(value)}</w:r>"
+    else:
+        body = "".join(runs)
+    return f"<w:p>{ppr_xml}{body}</w:p>"
+
+
+def formatted_paragraph_xml(
+    text: str,
+    *,
+    style: str | None = None,
+    align: str | None = None,
+    ppr_extra: str = "",
+    first_line_chars: int | None = None,
+    first_line: int | None = None,
+    run_kwargs: dict[str, object] | None = None,
+    preserve_breaks: bool = False,
+) -> str:
+    runs = text_runs(text, run_kwargs=run_kwargs, preserve_breaks=preserve_breaks)
+    return paragraph_xml(
+        style=style,
+        align=align,
+        runs=runs,
+        ppr_extra=ppr_extra,
+        first_line_chars=first_line_chars,
+        first_line=first_line,
+    )
+
+
+def page_break_xml() -> str:
+    spacer = spacing_xml(before=0, after=0, line=1, line_rule="exact")
+    return f'<w:p><w:pPr>{spacer}</w:pPr><w:r><w:br w:type="page"/></w:r></w:p>'
+
+
+def add_page_break_before_paragraph_xml(paragraph: str) -> str:
+    if "<w:pPr>" in paragraph:
+        return paragraph.replace("<w:pPr>", "<w:pPr><w:pageBreakBefore/>", 1)
+    return paragraph.replace("<w:p>", "<w:p><w:pPr><w:pageBreakBefore/></w:pPr>", 1)
+
+
+def section_break_paragraph_xml(sect_pr: str) -> str:
+    spacer = spacing_xml(before=0, after=0, line=1, line_rule="exact")
+    return f"<w:p><w:pPr>{spacer}{sect_pr}</w:pPr></w:p>"
+
+
+def add_section_to_paragraph_xml(paragraph: str, sect_pr: str) -> str:
+    if "</w:pPr>" in paragraph:
+        return paragraph.replace("</w:pPr>", f"{sect_pr}</w:pPr>", 1)
+    return paragraph.replace("<w:p>", f"<w:p><w:pPr>{sect_pr}</w:pPr>", 1)
+
+
+def toc_field_paragraph_xml() -> str:
+    runs = [
+        field_char_run_xml("begin", dirty=True),
+        # Restrict the TOC to heading styles only. The school template marks some
+        # non-heading styles (for example the code block style) with outline levels,
+        # and the `\\u` switch would pull those paragraphs into the TOC.
+        instr_text_run_xml(' TOC \\o "1-3" \\h \\z '),
+        field_char_run_xml("separate"),
+        run_text_xml(" ", size=24),
+        field_char_run_xml("end"),
+    ]
+    return paragraph_xml(
+        runs=runs,
+        style=STYLE_TOC_FIELD,
+        ppr_extra=spacing_xml(line=288),
+    )
+
+

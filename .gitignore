@@ -6,6 +6,7 @@ xju_thesis_md2docx/world-math/node_modules/
 example/*.generated.docx
 example/*.generated.pdf
 example/preview/
+tools/docx2pdf/.env
 
 *.bak
 *.docx.bak

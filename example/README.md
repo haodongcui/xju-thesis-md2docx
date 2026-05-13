@@ -19,25 +19,31 @@ example/
 在仓库根目录执行：
 
 ```bash
-bash demo.sh
+./xju.sh docx example/thesis-demo.md example/thesis-demo.generated.docx
 ```
 
-或显式指定输入输出：
+Windows PowerShell：
 
-```bash
-python3 xju_thesis_md2docx.py example/thesis-demo.md example/thesis-demo.generated.docx
+```powershell
+.\xju.ps1 docx example\thesis-demo.md example\thesis-demo.generated.docx
 ```
 
 如果当前环境是 WSL，且 Windows 侧安装了 Microsoft Word，可以继续用高保真 Word 后端导出 PDF：
 
 ```bash
-bash tools/docx2pdf/docx2pdf.sh --backend word example/thesis-demo.generated.docx example/thesis-demo.generated.pdf
+./xju.sh pdf example/thesis-demo.generated.docx example/thesis-demo.generated.pdf --backend word
 ```
 
 如果没有 Word，也可以使用 LibreOffice 后端做快速预览：
 
 ```bash
-bash tools/docx2pdf/docx2pdf.sh --backend libreoffice example/thesis-demo.generated.docx example/thesis-demo.generated.pdf
+./xju.sh pdf example/thesis-demo.generated.docx example/thesis-demo.generated.pdf --backend libreoffice
+```
+
+也可以一步生成 DOCX 和 PDF：
+
+```bash
+./xju.sh all example/thesis-demo.md example/thesis-demo.generated.docx example/thesis-demo.generated.pdf --backend auto
 ```
 
 ## 示例覆盖内容
