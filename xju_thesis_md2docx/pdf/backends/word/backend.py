@@ -7,9 +7,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from .common import (
+from ...common import (
     PdfError,
-    WORD_BACKEND_DIR,
     bool_env,
     ensure_input_file,
     is_windows,
@@ -22,6 +21,7 @@ from .common import (
 )
 
 
+BACKEND_DIR = Path(__file__).resolve().parent
 WINDOWS_PATH_RE = re.compile(r"^[A-Za-z]:[\\/]")
 
 
@@ -191,7 +191,7 @@ def convert(
     output_path = _resolve_output(input_path, output_pdf)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    default_vbs = WORD_BACKEND_DIR / "word_export.vbs"
+    default_vbs = BACKEND_DIR / "word_export.vbs"
     vbs_path = _resolve_backend_path(
         vbs_template or os.environ.get("XJU_WORD_DOCX2PDF_VBS_TEMPLATE"),
         default_vbs,
@@ -240,7 +240,7 @@ def convert(
 
 
 def doctor() -> int:
-    print("word-docx2pdf environment check")
+    print("Word PDF backend environment check")
     print()
     status = 0
 

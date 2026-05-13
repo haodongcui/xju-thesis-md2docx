@@ -9,12 +9,12 @@ from xml.etree import ElementTree as ET
 from xml.sax.saxutils import escape
 
 from ..constants import (
+    LATEX2OMML_NODE_DIR,
+    LATEX2OMML_NODE_REQUIRED_MODULES,
+    LATEX2OMML_NODE_SCRIPT,
     M_NS,
     OMML_ACCENT_CHAR_MAP,
     OMML_TEXT_PATTERN,
-    WORD_MATH_DIR,
-    WORD_MATH_REQUIRED_MODULES,
-    WORD_MATH_SCRIPT,
 )
 from ..inline import split_inline_code, split_inline_math
 
@@ -100,10 +100,10 @@ class MathConverter:
             return False
         if self.ready:
             return True
-        if not WORD_MATH_SCRIPT.exists():
-            self._remember_failure(f"missing converter script: {WORD_MATH_SCRIPT}")
+        if not LATEX2OMML_NODE_SCRIPT.exists():
+            self._remember_failure(f"missing converter script: {LATEX2OMML_NODE_SCRIPT}")
             return False
-        missing_modules = [str(path) for path in WORD_MATH_REQUIRED_MODULES if not path.exists()]
+        missing_modules = [str(path) for path in LATEX2OMML_NODE_REQUIRED_MODULES if not path.exists()]
         if missing_modules:
             self._remember_failure(
                 "formula converter dependencies are not installed"
@@ -134,8 +134,8 @@ class MathConverter:
         }
         try:
             result = subprocess.run(
-                ["node", str(WORD_MATH_SCRIPT)],
-                cwd=WORD_MATH_DIR,
+                ["node", str(LATEX2OMML_NODE_SCRIPT)],
+                cwd=LATEX2OMML_NODE_DIR,
                 input=json.dumps(payload, ensure_ascii=False),
                 capture_output=True,
                 text=True,
@@ -293,7 +293,7 @@ class MathConverter:
             return
 
         if self.failed_reason:
-            install_dir = str(WORD_MATH_DIR.resolve())
+            install_dir = str(LATEX2OMML_NODE_DIR.resolve())
             print(
                 (
                     "[warning] Word formula conversion is unavailable: "

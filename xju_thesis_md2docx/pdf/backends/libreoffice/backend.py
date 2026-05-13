@@ -8,8 +8,7 @@ import zipfile
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-from .common import (
-    LIBREOFFICE_BACKEND_DIR,
+from ...common import (
     PdfError,
     bool_env,
     ensure_input_file,
@@ -19,6 +18,9 @@ from .common import (
     resolve_path,
     which_any,
 )
+
+
+BACKEND_DIR = Path(__file__).resolve().parent
 
 
 def _default_windows_soffice_paths() -> list[Path]:
@@ -72,7 +74,7 @@ def _run_soffice(args: list[str], log_file: Path, env: dict[str, str]) -> None:
 
 
 def _write_export_macro(job_dir: Path) -> None:
-    macro_template = LIBREOFFICE_BACKEND_DIR / "update_fields_and_export.xba"
+    macro_template = BACKEND_DIR / "update_fields_and_export.xba"
     ensure_input_file(macro_template, "LibreOffice export macro template")
     macro_dir = job_dir / "profile" / "user" / "basic" / "Standard"
     macro_dir.mkdir(parents=True, exist_ok=True)
@@ -248,7 +250,7 @@ def convert(
 
 
 def doctor() -> int:
-    print("libreoffice-docx2pdf environment check")
+    print("LibreOffice PDF backend environment check")
     print()
     status = 0
 

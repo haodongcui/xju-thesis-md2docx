@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from . import libreoffice, word
+from .backends import libreoffice, word
 from .common import PdfError, is_windows, is_wsl
 
 

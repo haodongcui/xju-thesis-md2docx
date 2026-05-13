@@ -8,12 +8,6 @@ import sys
 from pathlib import Path
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-TOOLS_DOCX2PDF_DIR = REPO_ROOT / "tools" / "docx2pdf"
-WORD_BACKEND_DIR = TOOLS_DOCX2PDF_DIR / "backends" / "word"
-LIBREOFFICE_BACKEND_DIR = TOOLS_DOCX2PDF_DIR / "backends" / "libreoffice"
-
-
 class PdfError(RuntimeError):
     pass
 

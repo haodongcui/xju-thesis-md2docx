@@ -31,11 +31,11 @@ TABLE_SPLIT_COMMENT_PATTERN = re.compile(
 CAPTION_PATTERN = re.compile(
     r"^[图表]\s*(?:附录\d+-)?(?:[A-Z]|\d+)(?:[-.]\d+)*(?:\([a-zA-Z]\))?\s+"
 )
-WORD_MATH_DIR = TOOL_ROOT / "world-math"
-WORD_MATH_SCRIPT = WORD_MATH_DIR / "convert.js"
-WORD_MATH_REQUIRED_MODULES = (
-    WORD_MATH_DIR / "node_modules" / "temml",
-    WORD_MATH_DIR / "node_modules" / "@hungknguyen" / "mathml2omml",
+LATEX2OMML_NODE_DIR = TOOL_ROOT / "math" / "latex2omml_node"
+LATEX2OMML_NODE_SCRIPT = LATEX2OMML_NODE_DIR / "convert.js"
+LATEX2OMML_NODE_REQUIRED_MODULES = (
+    LATEX2OMML_NODE_DIR / "node_modules" / "temml",
+    LATEX2OMML_NODE_DIR / "node_modules" / "@hungknguyen" / "mathml2omml",
 )
 OMML_TEXT_PATTERN = re.compile(r"(<(?:m|w):t\b[^>]*>)(.*?)(</(?:m|w):t>)", re.DOTALL)
 OMML_ACCENT_CHAR_MAP = {

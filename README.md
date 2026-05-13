@@ -65,7 +65,7 @@ py -3 -m pip install -r requirements.txt
 如果希望 LaTeX 公式尽量转换为 Word 原生公式，需要安装 Node.js 依赖：
 
 ```bash
-cd xju_thesis_md2docx/world-math
+cd xju_thesis_md2docx/math/latex2omml_node
 npm install
 ```
 
@@ -232,7 +232,7 @@ pdftoppm -png -f 1 -l 6 -r 120 \
   example/preview/thesis-demo/page
 ```
 
-`xju.py` 是跨平台统一入口；`xju.sh`、`xju.ps1`、`xju.cmd` 只是不同系统上的启动器。`tools/docx2pdf/` 仍然提供底层 PDF 调度入口；实际后端资源位于 `tools/docx2pdf/backends/word/` 和 `tools/docx2pdf/backends/libreoffice/`。`tools/word-docx2pdf/`、`tools/libreoffice-docx2pdf/` 只是旧路径兼容入口。
+`xju.py` 是跨平台统一入口；`xju.sh`、`xju.ps1`、`xju.cmd` 只是不同系统上的启动器。PDF 后端已经收进 Python 包内部，后端实现和资源分别位于 `xju_thesis_md2docx/pdf/backends/word/` 和 `xju_thesis_md2docx/pdf/backends/libreoffice/`。日常使用不需要进入后端目录。
 
 Word 后端支持原生 Windows 和 WSL。它通过 Windows COM 注册名 `Word.Application` 启动 Microsoft Word，不需要设置 `WINWORD.EXE` 的绝对路径。确实需要指定临时目录时，可以使用：
 
@@ -246,11 +246,18 @@ Windows PowerShell 示例：
 .\xju.ps1 pdf thesis.docx thesis.pdf --backend word --tmp-root C:\Temp\xju-word-docx2pdf
 ```
 
-也可以参考环境变量示例：
+常用环境变量：
 
-```text
-tools/docx2pdf/env.example
-```
+| 变量 | 作用 |
+| --- | --- |
+| `XJU_DOCX2PDF_BACKEND` | 默认 PDF 后端，例如 `word`、`libreoffice`、`auto` |
+| `XJU_WORD_DOCX2PDF_TMP_ROOT` | Word 后端临时目录，WSL 下建议指向 Windows 本地磁盘 |
+| `XJU_WORD_DOCX2PDF_VBS_TEMPLATE` | 覆盖内置 Word VBS 导出脚本 |
+| `XJU_WORD_DOCX2PDF_UPDATE_FIELDS=0` | Word 后端导出前不刷新域 |
+| `XJU_LIBREOFFICE_BIN` | 指定 LibreOffice/soffice 可执行文件 |
+| `XJU_LIBREOFFICE_DOCX2PDF_TMP_ROOT` | LibreOffice 后端临时目录 |
+| `XJU_LIBREOFFICE_DOCX2PDF_UPDATE_FIELDS=0` | LibreOffice 后端导出前不刷新域 |
+| `XJU_LIBREOFFICE_DOCX2PDF_FONT_SUBSTITUTION=0` | 关闭 LibreOffice 字体替换尝试 |
 
 格式验收建议以 `word` 后端为准；`libreoffice` 后端更适合无 Word 环境下快速预览。
 
@@ -272,9 +279,9 @@ WPS 后端目前未实现。可行方向包括：
 - `wps-local-linux`：研究 Linux WPS 是否有稳定 CLI 导出 PDF；
 - `wps-cloud`：接 WPS WebOffice 文档转换 API，但需要账号、鉴权和上传文件，不适合作为默认本地后端。
 
-后续如接入 WPS，只需要新增一个 `xju_thesis_md2docx/pdf/wps.py` 后端模块，并在 `xju_thesis_md2docx/pdf/registry.py` 注册。
+后续如接入 WPS，只需要新增一个 `xju_thesis_md2docx/pdf/backends/wps/` 后端目录，并在 `xju_thesis_md2docx/pdf/registry.py` 注册。
 
-当前文档集中维护在本 `README.md`。子目录中的 README 只保留底层入口说明和兼容说明，日常使用以本文件为准。
+当前文档集中维护在本 `README.md`。日常使用以根目录统一入口为准。
 
 ## Markdown 结构
 
@@ -362,7 +369,6 @@ KEY WORDS: Keyword one; Keyword two; Keyword three
 
 - `example/README.md`
 - `example/thesis-demo.md`
-- `tools/docx2pdf/README.md`
 
 ## 格式对齐状态
 
@@ -397,27 +403,18 @@ xju-thesis-md2docx/
 │   ├── exporter.py                    # Markdown -> DOCX 编排入口
 │   ├── builders/                      # 文档结构和内容块构建
 │   ├── ooxml/                         # OOXML 段落、表格、图片、页眉页脚等渲染
-│   ├── math/                          # LaTeX -> OMML 转换封装
+│   ├── math/                          # LaTeX -> OMML 转换封装和 Node helper
+│   │   └── latex2omml_node/           # LaTeX -> MathML -> OMML 的本地 Node 工具
 │   ├── pdf/                           # 跨平台 DOCX -> PDF 调度和后端控制
 │   │   ├── registry.py                # PDF 后端注册表
-│   │   ├── word.py                    # Microsoft Word PDF 后端
-│   │   └── libreoffice.py             # LibreOffice PDF 后端
-│   ├── resources/                     # 默认封面资源
-│   └── world-math/                    # LaTeX -> OMML helper
+│   │   └── backends/
+│   │       ├── word/                  # Microsoft Word PDF 后端和 VBS 资源
+│   │       └── libreoffice/           # LibreOffice PDF 后端和宏资源
+│   └── resources/                     # 默认封面资源
 ├── example/
 │   ├── README.md
 │   ├── thesis-demo.md
 │   └── img/
-├── tools/
-│   ├── docx2pdf/                      # PDF 后端统一入口和实际后端实现
-│   │   ├── docx2pdf.sh                # Linux / WSL wrapper
-│   │   ├── docx2pdf.ps1               # Windows PowerShell wrapper
-│   │   ├── docx2pdf.cmd               # Windows cmd wrapper
-│   │   └── backends/
-│   │       ├── word/                  # Windows / WSL Word PDF 后端
-│   │       └── libreoffice/           # LibreOffice PDF 后端
-│   ├── word-docx2pdf/                 # 旧路径兼容入口
-│   └── libreoffice-docx2pdf/          # 旧路径兼容入口
 ├── demo.sh
 ├── requirements.txt
 ├── CONTRIBUTING.md

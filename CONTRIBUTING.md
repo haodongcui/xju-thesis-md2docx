@@ -21,15 +21,15 @@ bash demo.sh
 如果修改了公式转换或 PDF 预览相关代码，还建议运行：
 
 ```bash
-bash tools/word-docx2pdf/doctor.sh
-bash tools/docx2pdf/docx2pdf.sh --backend word example/thesis-demo.generated.docx example/thesis-demo.generated.pdf
+./xju.sh doctor --backend word
+./xju.sh pdf example/thesis-demo.generated.docx example/thesis-demo.generated.pdf --backend word
 ```
 
 如果修改了 LibreOffice 后端，还建议运行：
 
 ```bash
-bash tools/libreoffice-docx2pdf/doctor.sh
-bash tools/docx2pdf/docx2pdf.sh --backend libreoffice example/thesis-demo.generated.docx example/thesis-demo.generated.pdf
+./xju.sh doctor --backend libreoffice
+./xju.sh pdf example/thesis-demo.generated.docx example/thesis-demo.generated.pdf --backend libreoffice
 ```
 
 ## 提交内容
@@ -38,14 +38,14 @@ bash tools/docx2pdf/docx2pdf.sh --backend libreoffice example/thesis-demo.genera
 
 - `xju_thesis_md2docx/` 中的源码改动；
 - `example/thesis-demo.md` 或 `example/README.md` 中的示例更新；
-- `README.md`、`tools/word-docx2pdf/README.md` 等文档更新。
+- `README.md`、`CONTRIBUTING.md` 等文档更新。
 
 不建议提交：
 
 - `example/*.generated.docx`；
 - `example/*.generated.pdf`；
 - `example/preview/`；
-- `xju_thesis_md2docx/world-math/node_modules/`；
+- `xju_thesis_md2docx/math/latex2omml_node/node_modules/`；
 - 本地临时文件、缓存和手工备份文件。
 
 ## 格式类改动

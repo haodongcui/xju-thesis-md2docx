@@ -2,11 +2,11 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 
-xju_thesis_md2docx/world-math/node_modules/
+xju_thesis_md2docx/math/latex2omml_node/node_modules/
 example/*.generated.docx
 example/*.generated.pdf
 example/preview/
-tools/docx2pdf/.env
+.env
 
 *.bak
 *.docx.bak
