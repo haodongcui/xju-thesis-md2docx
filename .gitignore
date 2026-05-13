@@ -2,7 +2,7 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 
-xju_thesis_md2docx/math/latex2omml_node/node_modules/
+thesis_md2docx/math/latex2omml_node/node_modules/
 example/*.generated.docx
 example/*.generated.pdf
 example/preview/

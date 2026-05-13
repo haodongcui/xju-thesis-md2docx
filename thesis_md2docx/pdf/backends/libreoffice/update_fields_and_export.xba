@@ -5,8 +5,8 @@
 Sub ExportPdf()
     Dim inputUrl As String
     Dim outputUrl As String
-    inputUrl = Environ("XJU_LO_INPUT_URL")
-    outputUrl = Environ("XJU_LO_OUTPUT_URL")
+    inputUrl = Environ("THESIS_LO_INPUT_URL")
+    outputUrl = Environ("THESIS_LO_OUTPUT_URL")
     If inputUrl = "" Or outputUrl = "" Then
         End
     End If

@@ -9,4 +9,4 @@ else
   PYTHON=python
 fi
 
-exec "$PYTHON" "$ROOT/xju.py" "$@"
+exec "$PYTHON" "$ROOT/md2docx.py" "$@"

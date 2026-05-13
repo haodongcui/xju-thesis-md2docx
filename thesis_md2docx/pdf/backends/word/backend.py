@@ -112,8 +112,8 @@ def _resolve_output(raw_input: Path, raw_output: str | Path | None) -> Path:
 def _default_tmp_root() -> Path:
     if is_wsl():
         raw = _powershell_output("[Console]::Out.Write([IO.Path]::GetTempPath())")
-        return (_wsl_path_to_unix(raw) / "xju_word_docx2pdf").resolve()
-    return (Path(tempfile.gettempdir()) / "xju_word_docx2pdf").resolve()
+        return (_wsl_path_to_unix(raw) / "thesis_word_docx2pdf").resolve()
+    return (Path(tempfile.gettempdir()) / "thesis_word_docx2pdf").resolve()
 
 
 def _resolve_tmp_root(raw: str | Path | None) -> Path:
@@ -179,13 +179,13 @@ def convert(
     if is_wsl() and not which_any(["wslpath"]):
         raise PdfError("wslpath not found in PATH")
 
-    keep_tmp = bool_env("XJU_WORD_DOCX2PDF_KEEP_TMP", False) if keep_tmp is None else keep_tmp
+    keep_tmp = bool_env("THESIS_WORD_DOCX2PDF_KEEP_TMP", False) if keep_tmp is None else keep_tmp
     skip_word_check = (
-        bool_env("XJU_WORD_DOCX2PDF_SKIP_WORD_CHECK", False)
+        bool_env("THESIS_WORD_DOCX2PDF_SKIP_WORD_CHECK", False)
         if skip_word_check is None
         else skip_word_check
     )
-    update_fields = bool_env("XJU_WORD_DOCX2PDF_UPDATE_FIELDS", True) if update_fields is None else update_fields
+    update_fields = bool_env("THESIS_WORD_DOCX2PDF_UPDATE_FIELDS", True) if update_fields is None else update_fields
 
     input_path = ensure_input_file(_resolve_input_path(input_docx))
     output_path = _resolve_output(input_path, output_pdf)
@@ -193,7 +193,7 @@ def convert(
 
     default_vbs = BACKEND_DIR / "word_export.vbs"
     vbs_path = _resolve_backend_path(
-        vbs_template or os.environ.get("XJU_WORD_DOCX2PDF_VBS_TEMPLATE"),
+        vbs_template or os.environ.get("THESIS_WORD_DOCX2PDF_VBS_TEMPLATE"),
         default_vbs,
     )
     ensure_input_file(vbs_path, "VBS template")
@@ -203,7 +203,7 @@ def convert(
         if not ok:
             raise PdfError(f"Microsoft Word COM automation is unavailable: {message}")
 
-    tmp_root_path = _resolve_tmp_root(tmp_root or os.environ.get("XJU_WORD_DOCX2PDF_TMP_ROOT"))
+    tmp_root_path = _resolve_tmp_root(tmp_root or os.environ.get("THESIS_WORD_DOCX2PDF_TMP_ROOT"))
     tmp_root_path.mkdir(parents=True, exist_ok=True)
     if is_wsl():
         tmp_root_win = _path_to_windows(tmp_root_path)

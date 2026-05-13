@@ -3,8 +3,9 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-python3 "$ROOT/xju_thesis_md2docx.py" \
+"$ROOT/md2docx.sh" docx \
   "$ROOT/example/thesis-demo.md" \
-  "$ROOT/example/thesis-demo.generated.docx"
+  "$ROOT/example/thesis-demo.generated.docx" \
+  --profile xju-undergraduate-thesis
 
 echo "Generated: $ROOT/example/thesis-demo.generated.docx"

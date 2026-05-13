@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Callable, cast
 
 from ..builders.elements import build_caption_paragraph, build_reference_paragraph
 from ..constants import *
 from ..markdown import join_soft_wrapped_lines
 from ..math.converter import MathConverter
 from ..media import MediaImage, MediaManager
-from ..ooxml.parts import native_sect_pr_xml
 from ..ooxml.render import (
     figure_row_xml,
     image_paragraph_xml,
@@ -20,7 +20,6 @@ from ..ooxml.render import (
     section_break_paragraph_xml,
     table_xml,
 )
-from ..ooxml.xml import indent_xml, spacing_xml
 from ..table_utils import (
     is_table_separator,
     parse_table_split_spec,
@@ -28,128 +27,17 @@ from ..table_utils import (
     split_table_rows,
 )
 
-def normalize_appendix_heading(text: str, appendix_index: int) -> str:
-    cleaned = re.sub(r"^附录\s*[A-Z0-9]+\s*", "", text).strip()
-    if cleaned:
-        return f"附录{appendix_index} {cleaned}"
-    return f"附录{appendix_index}"
-
-
-def normalize_appendix_references(text: str, appendix_index: int) -> str:
-    def replace_heading(match: re.Match[str]) -> str:
-        prefix = match.group(1)
-        item_no = match.group(2)
-        return f"{prefix} 附录{appendix_index}-{item_no}"
-
-    return re.sub(r"([图表])\s*[A-Z]-(\d+)", replace_heading, text)
-
-
-def strip_heading_prefix(text: str) -> str:
-    stripped = re.sub(r"^\d+(?:\.\d+)*\s+", "", text).strip()
-    return stripped or text.strip()
-
-
-def heading_paragraph_xml(
-    text: str,
-    level: int,
-    profile: dict[str, object],
-    *,
-    numbered: bool = True,
-    keep_with_next: bool = True,
-) -> str:
-    if level == 1:
-        style = profile.get("heading1")
-    elif level == 2:
-        style = profile.get("heading2")
-    else:
-        style = profile.get("heading3")
-
-    if numbered:
-        heading_text = strip_heading_prefix(text) if profile.get("strip_heading_numbers") else text.strip()
-        # 范例实测：Heading2 实例覆盖样式，使 before=240(1行), after=120(0.5行), line=360(1.5倍)
-        # 基础 styleId="2" 只有 before=100, after=50，不符合规范，此处显式覆盖
-        if level == 2:
-            ppr_extra = (
-                ("<w:keepNext/><w:keepLines/>" if keep_with_next else "")
-                + spacing_xml(before=240, after=120, line=360)
-                + indent_xml(left=0, first_line=0)
-            )
-            return paragraph_xml(heading_text, style=str(style) if style else None, align="left", ppr_extra=ppr_extra)
-        elif level == 1:
-            ppr_extra = spacing_xml(before_lines=80, before=0, line=240) + indent_xml(left=0, first_line=0)
-        else:
-            ppr_extra = (
-                ("<w:keepNext/><w:keepLines/>" if keep_with_next else "")
-                + spacing_xml(before=120, line=360)
-                + indent_xml(left=0, first_line_chars=200, first_line=560)
-            )
-            return paragraph_xml(heading_text, style=str(style) if style else None, align="left", ppr_extra=ppr_extra)
-        return paragraph_xml(heading_text, style=str(style) if style else None, ppr_extra=ppr_extra)
-
-    ppr_extra = '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="0"/></w:numPr>'
-    if level == 1:
-        ppr_extra += spacing_xml(line=240)
-    elif level == 3:
-        # 规范：三级标题左起空两字符 (2 × 四号 14pt = 560 twips)
-        ppr_extra += (
-            ("<w:keepNext/><w:keepLines/>" if keep_with_next else "")
-            + spacing_xml(before=120, line=360)
-            + indent_xml(left=0, first_line_chars=200, first_line=560)
-        )
-        return paragraph_xml(text.strip(), style=str(style) if style else None, align="left", ppr_extra=ppr_extra)
-    return paragraph_xml(text.strip(), style=str(style) if style else None, ppr_extra=ppr_extra)
-
-
-def acknowledgement_heading_paragraph_xml(text: str, profile: dict[str, object]) -> str:
-    style = profile.get("heading1")
-    # The official sample keeps acknowledgement in the level-1/TOC family, but
-    # its heading sits at the front-matter vertical position instead of the
-    # lower reference-heading position. Override only paragraph spacing here.
-    ppr_extra = (
-        '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="0"/></w:numPr>'
-        '<w:snapToGrid w:val="0"/>'
-        + spacing_xml(before_lines=0, before=0, after_lines=200, after=480, line=240)
-    )
-    return paragraph_xml(text.strip(), style=str(style) if style else None, ppr_extra=ppr_extra)
-
-
-def native_style_profile() -> dict[str, object]:
-    return {
-        "title": STYLE_HEADING_1,
-        "heading1": STYLE_HEADING_1,
-        "heading2": STYLE_HEADING_2,
-        "heading3": STYLE_HEADING_3,
-        "normal": STYLE_BODY,
-        "quote": STYLE_QUOTE,
-        "code": STYLE_CODE_BLOCK,
-        "code_ppr_extra": '<w:outlineLvl w:val="9"/>',
-        "math": STYLE_MATH_BLOCK,
-        "table": STYLE_TABLE_TEXT,
-        "normal_first_line_chars": 200,
-        "normal_first_line": 480,
-        "normal_ppr_extra": '<w:widowControl w:val="0"/>' + spacing_xml(line=360),
-        "normal_run": {
-            "font_ascii": "Times New Roman",
-            "font_hansi": "Times New Roman",
-            "font_eastasia": "宋体",
-            "size": 24,
-        },
-        "caption": STYLE_CAPTION,
-        "skip_reference_notes": True,
-        "strip_heading_numbers": True,
-    }
-
 
 def build_document_elements(
     text: str,
-    profile: dict[str, object] | None = None,
+    profile: dict[str, object],
     *,
     treat_first_heading_as_title: bool = True,
     math_converter: MathConverter | None = None,
     reference_anchors: dict[str, str] | None = None,
     markdown_dir: Path | None = None,
     media_manager: MediaManager | None = None,
-) -> list[str]:
+) -> tuple[list[str], bool]:
     lines = text.splitlines()
     elements: list[str] = []
     paragraph_buffer: list[str] = []
@@ -168,7 +56,14 @@ def build_document_elements(
     pending_table_split: list[int] | None = None
     last_table_caption_text: str | None = None
 
-    profile = profile or native_style_profile()
+    heading_builder = cast(Callable[..., str], profile["heading_builder"])
+    acknowledgement_heading_builder = cast(
+        Callable[[str, dict[str, object]], str],
+        profile["acknowledgement_heading_builder"],
+    )
+    appendix_heading_normalizer = cast(Callable[[str, int], str], profile["appendix_heading_normalizer"])
+    appendix_reference_normalizer = cast(Callable[[str, int], str], profile["appendix_reference_normalizer"])
+    section_pr_builder = cast(Callable[..., str], profile["section_pr_builder"])
 
     def is_chapter_section_break(element: str) -> bool:
         return "<w:sectPr>" in element and 'w:type w:val="nextPage"' in element
@@ -177,7 +72,7 @@ def build_document_elements(
         nonlocal chapter_section_break_count
         if elements and elements[-1] != page_break_marker and not is_chapter_section_break(elements[-1]):
             if chapter_section_break_count == 0:
-                sect_pr = native_sect_pr_xml(
+                sect_pr = section_pr_builder(
                     section_type="nextPage",
                     with_header=True,
                     footer_kind="page",
@@ -185,7 +80,7 @@ def build_document_elements(
                     page_number_start=1,
                 )
             else:
-                sect_pr = native_sect_pr_xml(section_type="nextPage", with_header=True, footer_kind="page")
+                sect_pr = section_pr_builder(section_type="nextPage", with_header=True, footer_kind="page")
             elements.append(section_break_paragraph_xml(sect_pr))
             chapter_section_break_count += 1
 
@@ -209,7 +104,7 @@ def build_document_elements(
             return
 
         if in_appendix and current_appendix_index > 0:
-            paragraph = normalize_appendix_references(paragraph, current_appendix_index)
+            paragraph = appendix_reference_normalizer(paragraph, current_appendix_index)
 
         if current_top_heading == "参考文献":
             if profile.get("skip_reference_notes") and paragraph.startswith("说明："):
@@ -419,8 +314,8 @@ def build_document_elements(
             if current_top_heading == "附录" and raw_level == 2:
                 current_appendix_index += 1
                 append_chapter_page_break()
-                appendix_heading = heading_paragraph_xml(
-                    normalize_appendix_heading(heading_text, current_appendix_index),
+                appendix_heading = heading_builder(
+                    appendix_heading_normalizer(heading_text, current_appendix_index),
                     1,
                     profile,
                     numbered=False,
@@ -444,9 +339,9 @@ def build_document_elements(
 
             previous_is_caption = bool(elements and f'w:pStyle w:val="{STYLE_CAPTION}"' in elements[-1])
             if heading_text == "致谢" and raw_level == 1:
-                heading_xml = acknowledgement_heading_paragraph_xml(display_heading_text, profile)
+                heading_xml = acknowledgement_heading_builder(display_heading_text, profile)
             else:
-                heading_xml = heading_paragraph_xml(
+                heading_xml = heading_builder(
                     display_heading_text,
                     level,
                     profile,

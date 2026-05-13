@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import zipfile
 from pathlib import Path
 
-from .builders.document import build_document_elements, native_style_profile
-from .builders.elements import (
+from ...builders.document import build_document_elements
+from ...builders.elements import (
     build_blank_paragraph,
     build_body_paragraph,
     build_cover_elements,
@@ -13,41 +12,27 @@ from .builders.elements import (
     build_statement_body_paragraph,
     build_statement_signature_paragraph,
     build_taskbook_elements,
-    resolve_cover_assets_dir,
 )
-from .constants import *
-from .frontmatter import parse_inline_image_value, split_statement_content
-from .markdown import (
+from ...frontmatter import parse_inline_image_value, split_statement_content
+from ...markdown import (
     extract_abstract_and_keywords,
     parse_cover_info,
     parse_markdown_document,
 )
-from .math.converter import MathConverter
-from .media import MediaManager
-from .ooxml.header_footer import empty_footer_xml, header_xml, page_footer_xml
-from .ooxml.parts import (
-    app_xml,
-    content_types_xml,
-    core_xml,
-    document_rels_xml,
-    document_xml,
-    font_table_xml,
-    native_sect_pr_xml,
-    numbering_xml,
-    rels_xml,
-    settings_xml,
-    styles_xml,
-)
-from .ooxml.render import (
+from ...math.converter import MathConverter
+from ...media import MediaManager
+from ...ooxml.render import (
     add_section_to_paragraph_xml,
-    extract_reference_anchors,
     page_break_xml,
     toc_field_paragraph_xml,
 )
+from ..base import ThesisProfile
 
-def build_native_document(
+
+def build_document(
     text: str,
     *,
+    thesis_profile: ThesisProfile,
     math_converter: MathConverter | None = None,
     reference_anchors: dict[str, str] | None = None,
     markdown_dir: Path | None = None,
@@ -57,26 +42,26 @@ def build_native_document(
     markdown_title, front_sections, body_text = parse_markdown_document(text)
     cover_info = parse_cover_info(front_sections.get("封面信息", ""))
     thesis_title = cover_info.get("论文题目") or markdown_title or "新疆大学本科毕业论文"
-    profile = native_style_profile()
+    profile = thesis_profile.body_style_profile()
 
     # Keep the cover and its blank verso page in an empty-footer section. The
     # second page break carries the section properties, so the declaration starts
     # on physical page 3 while Roman numbering still starts at I.
-    cover_sect = native_sect_pr_xml(with_header=True, footer_kind="empty", section_type="continuous")
-    front_sect = native_sect_pr_xml(
+    cover_sect = thesis_profile.section_pr_xml(with_header=True, footer_kind="empty", section_type="continuous")
+    front_sect = thesis_profile.section_pr_xml(
         with_header=True,
         footer_kind="page",
         section_type="nextPage",
         page_number_format="upperRoman",
         page_number_start=1,
     )
-    body_start_sect = native_sect_pr_xml(
+    body_start_sect = thesis_profile.section_pr_xml(
         with_header=True,
         footer_kind="page",
         page_number_format="decimal",
         page_number_start=1,
     )
-    body_continue_sect = native_sect_pr_xml(with_header=True, footer_kind="page")
+    body_continue_sect = thesis_profile.section_pr_xml(with_header=True, footer_kind="page")
 
     elements: list[str] = []
     elements.extend(
@@ -179,48 +164,3 @@ def build_native_document(
     elements.extend(body_elements)
     body_sect = body_continue_sect if body_has_section_breaks else body_start_sect
     return elements, body_sect, thesis_title
-
-
-def write_docx(
-    markdown_path: Path,
-    output_path: Path,
-    *,
-    cover_assets_dir: Path | None = None,
-    use_cover_assets: bool = True,
-    enable_formula_conversion: bool = True,
-) -> None:
-    text = markdown_path.read_text(encoding="utf-8")
-    resolved_cover_assets_dir = resolve_cover_assets_dir(markdown_path, cover_assets_dir, use_cover_assets=use_cover_assets)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    math_converter = MathConverter() if enable_formula_conversion else None
-    if math_converter is not None:
-        math_converter.preload_from_markdown(text)
-    reference_anchors = extract_reference_anchors(text)
-    media_manager = MediaManager(starting_rid=IMAGE_STARTING_RID)
-    elements, sect_pr, doc_title = build_native_document(
-        text,
-        math_converter=math_converter,
-        reference_anchors=reference_anchors,
-        markdown_dir=markdown_path.parent,
-        cover_assets_dir=resolved_cover_assets_dir,
-        media_manager=media_manager,
-    )
-    with zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("[Content_Types].xml", content_types_xml(media_manager.image_extensions()))
-        zf.writestr("_rels/.rels", rels_xml())
-        zf.writestr("docProps/core.xml", core_xml(doc_title))
-        zf.writestr("docProps/app.xml", app_xml())
-        zf.writestr("word/document.xml", document_xml(elements, sect_pr=sect_pr))
-        zf.writestr("word/styles.xml", styles_xml())
-        zf.writestr("word/numbering.xml", numbering_xml())
-        zf.writestr("word/settings.xml", settings_xml())
-        zf.writestr("word/fontTable.xml", font_table_xml())
-        zf.writestr("word/header1.xml", header_xml())
-        zf.writestr("word/footer1.xml", empty_footer_xml())
-        zf.writestr("word/footer2.xml", page_footer_xml())
-        zf.writestr("word/_rels/document.xml.rels", document_rels_xml(media_manager))
-        for image in media_manager.images:
-            zf.writestr(f"word/{image.part_name}", image.source_path.read_bytes())
-
-    if math_converter is not None:
-        math_converter.emit_warning()

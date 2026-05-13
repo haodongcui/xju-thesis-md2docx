@@ -26,7 +26,7 @@ IMAGE_PATTERN = re.compile(r"^!\[(?P<alt>[^\]]*)\]\((?P<target>[^)]+)\)$")
 FIGURE_ROW_START_PATTERN = re.compile(r"^:::\s*figure-row\s*$")
 FIGURE_ROW_END_PATTERN = re.compile(r"^:::\s*$")
 TABLE_SPLIT_COMMENT_PATTERN = re.compile(
-    r"^<!--\s*xju-table-split\s*:\s*(?P<spec>\d+(?:\s*,\s*\d+)*)\s*-->\s*$"
+    r"^<!--\s*thesis-table-split\s*:\s*(?P<spec>\d+(?:\s*,\s*\d+)*)\s*-->\s*$"
 )
 CAPTION_PATTERN = re.compile(
     r"^[图表]\s*(?:附录\d+-)?(?:[A-Z]|\d+)(?:[-.]\d+)*(?:\([a-zA-Z]\))?\s+"

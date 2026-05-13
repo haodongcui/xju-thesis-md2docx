@@ -19,31 +19,31 @@ example/
 在仓库根目录执行：
 
 ```bash
-./xju.sh docx example/thesis-demo.md example/thesis-demo.generated.docx
+./md2docx.sh docx example/thesis-demo.md example/thesis-demo.generated.docx --profile xju-undergraduate-thesis
 ```
 
 Windows PowerShell：
 
 ```powershell
-.\xju.ps1 docx example\thesis-demo.md example\thesis-demo.generated.docx
+.\md2docx.ps1 docx example\thesis-demo.md example\thesis-demo.generated.docx --profile xju-undergraduate-thesis
 ```
 
 如果当前环境是 WSL，且 Windows 侧安装了 Microsoft Word，可以继续用高保真 Word 后端导出 PDF：
 
 ```bash
-./xju.sh pdf example/thesis-demo.generated.docx example/thesis-demo.generated.pdf --backend word
+./md2docx.sh pdf example/thesis-demo.generated.docx example/thesis-demo.generated.pdf --backend word
 ```
 
 如果没有 Word，也可以使用 LibreOffice 后端做快速预览：
 
 ```bash
-./xju.sh pdf example/thesis-demo.generated.docx example/thesis-demo.generated.pdf --backend libreoffice
+./md2docx.sh pdf example/thesis-demo.generated.docx example/thesis-demo.generated.pdf --backend libreoffice
 ```
 
 也可以一步生成 DOCX 和 PDF：
 
 ```bash
-./xju.sh all example/thesis-demo.md example/thesis-demo.generated.docx example/thesis-demo.generated.pdf --backend auto
+./md2docx.sh all example/thesis-demo.md example/thesis-demo.generated.docx example/thesis-demo.generated.pdf --profile xju-undergraduate-thesis --backend auto
 ```
 
 ## 示例覆盖内容
@@ -64,7 +64,7 @@ Windows PowerShell：
 - 前置部分使用二级标题，例如 `## 封面信息`、`## 摘要`、`## ABSTRACT`。
 - 图题和表题单独成行，建议使用 `图 2-1 ...`、`表 2-1 ...`。
 - 并排图使用 `:::figure-row` 容器，容器内每行放一张图片。
-- 长表拆分标记写在表题和表格之间，例如 `<!-- xju-table-split: 8, 10 -->`。
+- 长表拆分标记写在表题和表格之间，例如 `<!-- thesis-table-split: 8, 10 -->`。
 - 参考文献正文引用建议写作 `[1]`、`[1-3]`、`[1，3-4]`。
 
 ## 改成自己的论文

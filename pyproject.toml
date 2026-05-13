@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xju-thesis-md2docx"
+version = "0.1.0"
+description = "Profile-based Markdown to DOCX/PDF helper for Xinjiang University undergraduate theses."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+  { name = "xju-thesis-md2docx contributors" }
+]
+dependencies = [
+  "Pillow>=9.0"
+]
+keywords = ["markdown", "docx", "thesis", "xinjiang-university", "ooxml"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Education",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Text Processing :: Markup",
+]
+
+[project.urls]
+Homepage = "https://github.com/haodongcui/xju-thesis-md2docx"
+Repository = "https://github.com/haodongcui/xju-thesis-md2docx"
+
+[project.scripts]
+md2docx = "thesis_md2docx.main:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["thesis_md2docx*"]
+
+[tool.setuptools.package-data]
+thesis_md2docx = [
+  "resources/*.jpeg",
+  "resources/*.png",
+  "math/latex2omml_node/*.js",
+  "math/latex2omml_node/package.json",
+  "math/latex2omml_node/package-lock.json",
+  "pdf/backends/word/*.vbs",
+  "pdf/backends/libreoffice/*.xba",
+]

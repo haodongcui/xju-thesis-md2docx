@@ -9,6 +9,10 @@ from .common import PdfError
 from .registry import BACKENDS, backend_names, get_backend
 
 
+def default_pdf_backend() -> str:
+    return os.environ.get("THESIS_DOCX2PDF_BACKEND", "word")
+
+
 def add_backend_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--tmp-root",
@@ -69,20 +73,20 @@ def run_doctor(backend: str) -> int:
 def build_parser() -> argparse.ArgumentParser:
     backend_help = ", ".join(backend_names())
     parser = argparse.ArgumentParser(
-        prog="python -m xju_thesis_md2docx.pdf",
+        prog="python -m thesis_md2docx.pdf",
         description="Convert DOCX to PDF with Word or LibreOffice backends.",
         epilog=(
             "Examples:\n"
-            "  python -m xju_thesis_md2docx.pdf --backend word thesis.docx thesis.pdf\n"
-            "  python -m xju_thesis_md2docx.pdf --backend libreoffice thesis.docx thesis.pdf\n"
-            "  python -m xju_thesis_md2docx.pdf doctor --backend auto"
+            "  python -m thesis_md2docx.pdf --backend word thesis.docx thesis.pdf\n"
+            "  python -m thesis_md2docx.pdf --backend libreoffice thesis.docx thesis.pdf\n"
+            "  python -m thesis_md2docx.pdf doctor --backend auto"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--backend",
-        default=os.environ.get("XJU_DOCX2PDF_BACKEND", "word"),
-        help=f"PDF backend: {backend_help}. Defaults to $XJU_DOCX2PDF_BACKEND or word.",
+        default=default_pdf_backend(),
+        help=f"PDF backend: {backend_help}. Defaults to $THESIS_DOCX2PDF_BACKEND or word.",
     )
     parser.add_argument("--list-backends", action="store_true", help="Print supported backend names.")
     parser.add_argument("input", nargs="?", help="Input DOCX path.")
@@ -94,7 +98,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv and argv[0] == "doctor":
-        doctor_parser = argparse.ArgumentParser(prog="python -m xju_thesis_md2docx.pdf doctor")
+        doctor_parser = argparse.ArgumentParser(prog="python -m thesis_md2docx.pdf doctor")
         doctor_parser.add_argument(
             "--backend",
             default="auto",

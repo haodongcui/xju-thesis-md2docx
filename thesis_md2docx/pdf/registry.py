@@ -17,7 +17,6 @@ AvailableFunc = Callable[[], bool]
 @dataclass(frozen=True)
 class PdfBackend:
     name: str
-    aliases: tuple[str, ...]
     description: str
     convert: ConvertFunc
     doctor: DoctorFunc
@@ -64,7 +63,6 @@ def convert_libreoffice(args: argparse.Namespace) -> Path:
 BACKENDS: tuple[PdfBackend, ...] = (
     PdfBackend(
         name="word",
-        aliases=(),
         description="Windows Microsoft Word COM automation; highest fidelity.",
         convert=convert_word,
         doctor=word.doctor,
@@ -72,7 +70,6 @@ BACKENDS: tuple[PdfBackend, ...] = (
     ),
     PdfBackend(
         name="libreoffice",
-        aliases=("lo",),
         description="LibreOffice headless conversion; portable preview backend.",
         convert=convert_libreoffice,
         doctor=libreoffice.doctor,
@@ -83,8 +80,6 @@ BACKENDS: tuple[PdfBackend, ...] = (
 BACKEND_BY_NAME: dict[str, PdfBackend] = {}
 for backend in BACKENDS:
     BACKEND_BY_NAME[backend.name] = backend
-    for alias in backend.aliases:
-        BACKEND_BY_NAME[alias] = backend
 
 
 def backend_names(*, include_auto: bool = True) -> list[str]:

@@ -38,7 +38,7 @@ def _default_windows_soffice_paths() -> list[Path]:
 def find_soffice(raw: str | Path | None = None) -> Path | None:
     if raw:
         return resolve_path(raw)
-    env_value = os.environ.get("XJU_LIBREOFFICE_BIN")
+    env_value = os.environ.get("THESIS_LIBREOFFICE_BIN")
     if env_value:
         return resolve_path(env_value)
 
@@ -98,7 +98,7 @@ def _font_name_map() -> dict[str, str]:
 
 
 def _write_font_substitution_config(profile_dir: Path) -> None:
-    if not bool_env("XJU_LIBREOFFICE_DOCX2PDF_FONT_SUBSTITUTION", True):
+    if not bool_env("THESIS_LIBREOFFICE_DOCX2PDF_FONT_SUBSTITUTION", True):
         return
 
     user_dir = profile_dir / "user"
@@ -116,7 +116,7 @@ def _write_font_substitution_config(profile_dir: Path) -> None:
         items.extend(
             [
                 '<item oor:path="/org.openoffice.Office.Common/Font/Substitution/FontPairs">',
-                f'<node oor:name="_xju_{idx}" oor:op="replace">',
+                f'<node oor:name="_thesis_{idx}" oor:op="replace">',
                 f'<prop oor:name="ReplaceFont" oor:op="fuse"><value>{escape(source)}</value></prop>',
                 f'<prop oor:name="SubstituteFont" oor:op="fuse"><value>{escape(target)}</value></prop>',
                 '<prop oor:name="Always" oor:op="fuse"><value>true</value></prop>',
@@ -130,7 +130,7 @@ def _write_font_substitution_config(profile_dir: Path) -> None:
 
 
 def _rewrite_docx_font_names_for_libreoffice(input_path: Path, output_path: Path) -> None:
-    if not bool_env("XJU_LIBREOFFICE_DOCX2PDF_FONT_SUBSTITUTION", True):
+    if not bool_env("THESIS_LIBREOFFICE_DOCX2PDF_FONT_SUBSTITUTION", True):
         shutil.copy2(input_path, output_path)
         return
 
@@ -163,16 +163,16 @@ def convert(
     keep_tmp: bool | None = None,
     update_fields: bool | None = None,
 ) -> Path:
-    keep_tmp = bool_env("XJU_LIBREOFFICE_DOCX2PDF_KEEP_TMP", False) if keep_tmp is None else keep_tmp
+    keep_tmp = bool_env("THESIS_LIBREOFFICE_DOCX2PDF_KEEP_TMP", False) if keep_tmp is None else keep_tmp
     update_fields = (
-        bool_env("XJU_LIBREOFFICE_DOCX2PDF_UPDATE_FIELDS", True)
+        bool_env("THESIS_LIBREOFFICE_DOCX2PDF_UPDATE_FIELDS", True)
         if update_fields is None
         else update_fields
     )
 
     soffice_path = find_soffice(soffice)
     if soffice_path is None:
-        raise PdfError("LibreOffice executable not found. Install LibreOffice or set XJU_LIBREOFFICE_BIN.")
+        raise PdfError("LibreOffice executable not found. Install LibreOffice or set THESIS_LIBREOFFICE_BIN.")
     if not soffice_path.exists():
         raise PdfError(f"LibreOffice executable not found: {soffice_path}")
 
@@ -180,11 +180,11 @@ def convert(
     output_path = resolve_output_path(input_path, output_pdf)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    raw_tmp_root = tmp_root or os.environ.get("XJU_LIBREOFFICE_DOCX2PDF_TMP_ROOT")
+    raw_tmp_root = tmp_root or os.environ.get("THESIS_LIBREOFFICE_DOCX2PDF_TMP_ROOT")
     if raw_tmp_root:
         tmp_root_path = resolve_path(raw_tmp_root)
     else:
-        tmp_root_path = Path(tempfile.gettempdir()) / "xju_libreoffice_docx2pdf"
+        tmp_root_path = Path(tempfile.gettempdir()) / "thesis_libreoffice_docx2pdf"
     tmp_root_path.mkdir(parents=True, exist_ok=True)
 
     job_dir = Path(tempfile.mkdtemp(prefix="job-", dir=str(tmp_root_path)))
@@ -216,8 +216,8 @@ def convert(
                 log_file,
                 _base_env(
                     {
-                        "XJU_LO_INPUT_URL": _file_uri(job_input),
-                        "XJU_LO_OUTPUT_URL": _file_uri(job_output),
+                        "THESIS_LO_INPUT_URL": _file_uri(job_input),
+                        "THESIS_LO_OUTPUT_URL": _file_uri(job_output),
                     }
                 ),
             )
