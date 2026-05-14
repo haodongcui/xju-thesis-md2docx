@@ -1,30 +1,34 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
-from xml.sax.saxutils import escape
 
-from ..constants import *
-from ..frontmatter import (
+from ...constants import (
+    COVER_EMBLEM_NAME,
+    COVER_WORDMARK_NAME,
+    DEFAULT_LOCAL_COVER_ASSETS_REL,
+    EMU_PER_INCH,
+    SIGNATURE_IMAGE_HEIGHT_EMU,
+    SIGNATURE_IMAGE_WIDTH_EMU,
+)
+from ...frontmatter import (
     first_nonempty_value,
     taskbook_display_width,
     taskbook_run_kwargs,
     wrap_taskbook_text,
 )
-from ..markdown import parse_cover_info, split_cover_title_lines
-from ..math.converter import MathConverter
-from ..media import MediaImage, MediaManager, fit_extent_emu
-from ..ooxml.render import (
+from ...markdown import parse_cover_info, split_cover_title_lines
+from ...math.converter import MathConverter
+from ...media import MediaImage, MediaManager, fit_extent_emu
+from ...ooxml.render import (
     add_page_break_before_paragraph_xml,
     formatted_paragraph_xml,
     image_run_xml,
     paragraph_with_inline_math_xml,
     paragraph_xml,
-    reference_bookmark_id,
-    reference_bookmark_name,
-    text_runs,
 )
-from ..ooxml.xml import indent_xml, run_text_xml, spacing_xml
+from ...ooxml.xml import indent_xml, run_text_xml, spacing_xml
+from .styles import STYLE_BODY, STYLE_FRONT_HEADING
+
 
 def resolve_cover_assets_dir(markdown_path: Path, assets_dir: Path | None, *, use_cover_assets: bool) -> Path | None:
     if not use_cover_assets:
@@ -291,9 +295,6 @@ def build_front_heading(
             "font_eastasia": "黑体",
             "size": 32,
         }
-        # The declaration page in the official sample is higher than the
-        # abstract/TOC headings even though it uses the same heading face/size.
-        # Use the measured sample position for this special front-matter page.
         ppr_extra = '<w:snapToGrid w:val="0"/>' + spacing_xml(
             before_lines=100,
             before=240,
@@ -371,39 +372,6 @@ def build_body_paragraph(
     )
 
 
-def build_caption_paragraph(
-    text: str,
-    *,
-    style: str | None = None,
-    english: bool = False,
-    math_converter: MathConverter | None = None,
-    reference_anchors: dict[str, str] | None = None,
-    keep_next: bool = False,
-) -> str:
-    # Regulation: 五号宋体加粗，居中，段前段后0行
-    run_kwargs = {
-        "font_ascii": "Times New Roman",
-        "font_hansi": "Times New Roman",
-        "font_eastasia": "Times New Roman" if english else "宋体",
-        "size": 21,
-        "bold": True,
-    }
-    ppr_extra = spacing_xml(line=360, before=0, after=0) + indent_xml(left=0, first_line=0)
-    if keep_next:
-        # Used by table captions ("表 X-Y …") so the caption stays on the same
-        # page as the table that follows.
-        ppr_extra += "<w:keepNext/>"
-    return paragraph_with_inline_math_xml(
-        text,
-        style=style,
-        align="center",
-        ppr_extra=ppr_extra,
-        run_kwargs=run_kwargs,
-        math_converter=math_converter,
-        reference_anchors=reference_anchors,
-    )
-
-
 def build_keyword_paragraph(keywords: str, *, english: bool = False) -> str | None:
     if not keywords:
         return None
@@ -447,39 +415,6 @@ def build_keyword_paragraph(keywords: str, *, english: bool = False) -> str | No
         runs=runs,
         style=STYLE_BODY,
         ppr_extra=spacing_xml(line=360) + indent_xml(left=0, first_line_chars=0, first_line=0),
-    )
-
-
-def build_reference_paragraph(text: str, reference_anchors: dict[str, str] | None = None) -> str:
-    run_kwargs = {
-        "font_ascii": "Times New Roman",
-        "font_hansi": "Times New Roman",
-        "font_eastasia": "宋体",
-        "size": 21,
-    }
-    match = re.match(r"^\[(\d+)\]\s*(.*)$", text)
-    if not match:
-        return formatted_paragraph_xml(
-            text,
-            style=STYLE_REFERENCE,
-            ppr_extra=spacing_xml(line=360) + indent_xml(left=420, hanging=420),
-            run_kwargs=run_kwargs,
-        )
-
-    ref_id, rest = match.groups()
-    anchor = reference_anchors.get(ref_id, reference_bookmark_name(ref_id)) if reference_anchors else reference_bookmark_name(ref_id)
-    bookmark_id = reference_bookmark_id(ref_id)
-    runs = [
-        f'<w:bookmarkStart w:id="{bookmark_id}" w:name="{escape(anchor)}"/>',
-        run_text_xml(f"[{ref_id}] ", **run_kwargs),
-        f'<w:bookmarkEnd w:id="{bookmark_id}"/>',
-    ]
-    if rest:
-        runs.extend(text_runs(rest, run_kwargs=run_kwargs))
-    return paragraph_xml(
-        style=STYLE_REFERENCE,
-        runs=runs,
-        ppr_extra=spacing_xml(line=360) + indent_xml(left=420, hanging=420),
     )
 
 

@@ -4,6 +4,19 @@
 
 ## 基本结构
 
+开始写作前建议先检查环境：
+
+```bash
+python3 md2docx.py doctor
+python3 md2docx.py list-profiles
+```
+
+如果有公式，建议安装公式依赖：
+
+```bash
+npm install --prefix thesis_md2docx/math/latex2omml_node
+```
+
 推荐结构如下：
 
 ```markdown
@@ -283,5 +296,27 @@ npm install
 - 不要跳过一级标题直接从 `## 1.1` 开始正文。
 - 图题、表题不要和正文混在同一段。
 - 图片路径尽量使用相对路径，不要使用本机绝对路径。
-- 生成 DOCX 后需要在 Word/WPS 中刷新目录域和页码。
+- 生成 DOCX 后需要在 Word/WPS 中打开并刷新目录域和页码。
 - 最终提交前必须人工检查分页、孤行、表格跨页、公式和参考文献格式。
+
+## 推荐导出流程
+
+日常写作时：
+
+```bash
+python3 md2docx.py docx thesis.md thesis.docx --profile xju-undergraduate-thesis
+```
+
+需要预览版式时：
+
+```bash
+python3 md2docx.py all thesis.md thesis.docx thesis.pdf --profile xju-undergraduate-thesis --backend auto
+```
+
+最终检查时，优先使用 Microsoft Word 后端导出 PDF：
+
+```bash
+python3 md2docx.py pdf thesis.docx thesis.pdf --backend word
+```
+
+LibreOffice 后端适合快速预览或没有 Word 的环境，但最终分页和字体效果仍以 Word/WPS 人工检查为准。

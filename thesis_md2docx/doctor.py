@@ -17,6 +17,7 @@ from .constants import (
 )
 from .pdf.main import run_doctor as run_pdf_doctor
 from .profiles import DEFAULT_PROFILE_NAME, get_profile, profile_names
+from .styles import validate_style_catalog
 
 
 def _print_check(ok: bool, message: str) -> bool:
@@ -94,6 +95,13 @@ def _check_profiles() -> int:
     try:
         profile = get_profile(DEFAULT_PROFILE_NAME)
         _print_check(True, f"default profile: {profile.name}")
+        issues = validate_style_catalog(profile.style_catalog(), profile.style_roles())
+        if issues:
+            for issue in issues:
+                _print_check(False, f"profile style issue: {issue.message}")
+            status = 1
+        else:
+            _print_check(True, f"profile styles: {len(profile.style_catalog().styles)} styles")
     except ValueError as exc:
         _print_check(False, str(exc))
         status = 1

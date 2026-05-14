@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..constants import BODY_TEXT_CENTER_TWIPS, BODY_TEXT_WIDTH_TWIPS, CAPTION_PATTERN, INLINE_CITATION_PATTERN, STYLE_TOC_FIELD
+from ..constants import BODY_TEXT_CENTER_TWIPS, BODY_TEXT_WIDTH_TWIPS, INLINE_CITATION_PATTERN
 from ..inline import split_inline_code, split_inline_math
 from ..math.converter import MathConverter
 from .text import citation_text_runs, inline_code_run_xml, text_runs
@@ -132,15 +132,6 @@ def math_paragraph_xml(
     return paragraph_xml(latex, style=style, align=align, ppr_extra=math_ppr_extra)
 
 
-def is_caption_paragraph(text: str) -> bool:
-    candidate = text.strip()
-    if not CAPTION_PATTERN.match(candidate):
-        return False
-    # 真正的题注应是标题式短语，不应包含中文句号。正文里以
-    # "图/表 X-Y" 开头并继续展开说明的段落不能套用题注格式。
-    return not any(mark in candidate for mark in ("。", "．"))
-
-
 def paragraph_xml(
     text: str | None = None,
     *,
@@ -219,7 +210,7 @@ def add_section_to_paragraph_xml(paragraph: str, sect_pr: str) -> str:
     return paragraph.replace("<w:p>", f"<w:p><w:pPr>{sect_pr}</w:pPr>", 1)
 
 
-def toc_field_paragraph_xml() -> str:
+def toc_field_paragraph_xml(*, style: str | None = None) -> str:
     runs = [
         field_char_run_xml("begin", dirty=True),
         # Restrict the TOC to heading styles only. The school template marks some
@@ -232,8 +223,6 @@ def toc_field_paragraph_xml() -> str:
     ]
     return paragraph_xml(
         runs=runs,
-        style=STYLE_TOC_FIELD,
+        style=style,
         ppr_extra=spacing_xml(line=288),
     )
-
-

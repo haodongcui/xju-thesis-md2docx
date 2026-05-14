@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from ..constants import *
-from .render import formatted_paragraph_xml, paragraph_xml
-from .xml import field_char_run_xml, instr_text_run_xml, run_text_xml
+from ...constants import R_NS, W_NS
+from ...ooxml.render import formatted_paragraph_xml, paragraph_xml
+from ...ooxml.xml import field_char_run_xml, instr_text_run_xml, run_text_xml
+from .styles import STYLE_FOOTER, STYLE_HEADER
+
 
 def header_xml() -> str:
     ppr_extra = (

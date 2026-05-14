@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from ..constants import STYLE_TABLE_TEXT
 from ..math.converter import MathConverter
 from ..table_utils import (
     choose_table_font_size,
@@ -58,11 +57,12 @@ def table_cell_xml(
 
 def table_xml(
     rows: list[list[str]],
-    cell_style: str = STYLE_TABLE_TEXT,
+    cell_style: str | None = None,
     *,
     math_converter: MathConverter | None = None,
     reference_anchors: dict[str, str] | None = None,
 ) -> str:
+    cell_style = cell_style or "TableText"
     col_count = max(len(rows[0]), 1)
     header_names = [rows[0][i].strip() if i < len(rows[0]) else "" for i in range(col_count)]
     grouped_header = parse_grouped_step_header(rows[0])
@@ -223,5 +223,3 @@ def table_xml(
         tr_pr = f"<w:trPr>{''.join(tr_pr_parts)}</w:trPr>"
         trs.append(f"<w:tr>{tr_pr}{''.join(cells)}</w:tr>")
     return f"<w:tbl>{tbl_pr}{tbl_grid}{''.join(trs)}</w:tbl>"
-
-

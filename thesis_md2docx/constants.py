@@ -23,14 +23,6 @@ PIC_NS = "http://schemas.openxmlformats.org/drawingml/2006/picture"
 INLINE_MATH_PATTERN = re.compile(r"(?<!\\)\$(?!\$)(.+?)(?<!\\)\$(?!\$)")
 INLINE_CITATION_PATTERN = re.compile(r"\[(\d+(?:\s*(?:[-,，]\s*\d+)*)+)\]")
 IMAGE_PATTERN = re.compile(r"^!\[(?P<alt>[^\]]*)\]\((?P<target>[^)]+)\)$")
-FIGURE_ROW_START_PATTERN = re.compile(r"^:::\s*figure-row\s*$")
-FIGURE_ROW_END_PATTERN = re.compile(r"^:::\s*$")
-TABLE_SPLIT_COMMENT_PATTERN = re.compile(
-    r"^<!--\s*thesis-table-split\s*:\s*(?P<spec>\d+(?:\s*,\s*\d+)*)\s*-->\s*$"
-)
-CAPTION_PATTERN = re.compile(
-    r"^[图表]\s*(?:附录\d+-)?(?:[A-Z]|\d+)(?:[-.]\d+)*(?:\([a-zA-Z]\))?\s+"
-)
 LATEX2OMML_NODE_DIR = TOOL_ROOT / "math" / "latex2omml_node"
 LATEX2OMML_NODE_SCRIPT = LATEX2OMML_NODE_DIR / "convert.js"
 LATEX2OMML_NODE_REQUIRED_MODULES = (
@@ -66,21 +58,6 @@ BODY_TEXT_WIDTH_TWIPS = 8313
 BODY_TEXT_CENTER_TWIPS = BODY_TEXT_WIDTH_TWIPS // 2
 SIGNATURE_IMAGE_WIDTH_EMU = 1051560
 SIGNATURE_IMAGE_HEIGHT_EMU = 494511
-
-STYLE_BODY = "XjuBody"
-STYLE_HEADING_1 = "XjuHeading1"
-STYLE_HEADING_2 = "XjuHeading2"
-STYLE_HEADING_3 = "XjuHeading3"
-STYLE_FRONT_HEADING = "XjuFrontHeading"
-STYLE_TOC_FIELD = "XjuTocField"
-STYLE_CAPTION = "XjuCaption"
-STYLE_REFERENCE = "XjuReference"
-STYLE_QUOTE = "XjuQuote"
-STYLE_CODE_BLOCK = "XjuCodeBlock"
-STYLE_MATH_BLOCK = "XjuMathBlock"
-STYLE_TABLE_TEXT = "XjuTableText"
-STYLE_HEADER = "XjuHeader"
-STYLE_FOOTER = "XjuFooter"
 
 REL_ID_STYLES = "rId1"
 REL_ID_SETTINGS = "rId2"

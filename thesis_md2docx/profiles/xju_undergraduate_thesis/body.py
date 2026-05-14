@@ -1,11 +1,51 @@
 from __future__ import annotations
 
 import re
+from xml.sax.saxutils import escape
 
-from ...constants import *
+from ...body_rules import BodyParseRules
 from ...ooxml.parts import native_sect_pr_xml
-from ...ooxml.render import paragraph_xml
-from ...ooxml.xml import indent_xml, spacing_xml
+from ...ooxml.render import (
+    paragraph_with_inline_math_xml,
+    paragraph_xml,
+    reference_bookmark_id,
+    reference_bookmark_name,
+    text_runs,
+)
+from ...ooxml.tables import table_xml
+from ...ooxml.xml import indent_xml, run_text_xml, spacing_xml
+from .styles import STYLE_REFERENCE, xju_style_roles
+
+
+FIGURE_ROW_START_PATTERN = re.compile(r"^:::\s*figure-row\s*$")
+FIGURE_ROW_END_PATTERN = re.compile(r"^:::\s*$")
+TABLE_SPLIT_COMMENT_PATTERN = re.compile(
+    r"^<!--\s*thesis-table-split\s*:\s*(?P<spec>\d+(?:\s*,\s*\d+)*)\s*-->\s*$"
+)
+CAPTION_PATTERN = re.compile(
+    r"^[图表]\s*(?:附录\d+-)?(?:[A-Z]|\d+)(?:[-.]\d+)*(?:\([a-zA-Z]\))?\s+"
+)
+CHAPTER_NUMBER_PATTERN = re.compile(r"^(\d+)\b")
+REFERENCE_ENTRY_PATTERN = re.compile(r"^\[\d+\]")
+
+
+def body_parse_rules() -> BodyParseRules:
+    return BodyParseRules(
+        reference_heading="参考文献",
+        acknowledgement_heading="致谢",
+        acknowledgement_display_text="致  谢",
+        appendix_heading="附录",
+        appendix_formula_scope_prefix="附录",
+        unnumbered_headings=frozenset({"参考文献", "致谢", "附录"}),
+        skip_reference_paragraph_prefixes=("说明：",),
+        reference_entry_pattern=REFERENCE_ENTRY_PATTERN,
+        caption_pattern=CAPTION_PATTERN,
+        table_caption_prefixes=("表",),
+        table_split_pattern=TABLE_SPLIT_COMMENT_PATTERN,
+        figure_row_start_pattern=FIGURE_ROW_START_PATTERN,
+        figure_row_end_pattern=FIGURE_ROW_END_PATTERN,
+        chapter_number_pattern=CHAPTER_NUMBER_PATTERN,
+    )
 
 
 def normalize_appendix_heading(text: str, appendix_index: int) -> str:
@@ -87,18 +127,83 @@ def acknowledgement_heading_paragraph_xml(text: str, profile: dict[str, object])
     return paragraph_xml(text.strip(), style=str(style) if style else None, ppr_extra=ppr_extra)
 
 
+def caption_paragraph_xml(
+    text: str,
+    *,
+    style: str | None = None,
+    english: bool = False,
+    math_converter=None,
+    reference_anchors: dict[str, str] | None = None,
+    keep_next: bool = False,
+) -> str:
+    run_kwargs = {
+        "font_ascii": "Times New Roman",
+        "font_hansi": "Times New Roman",
+        "font_eastasia": "Times New Roman" if english else "宋体",
+        "size": 21,
+        "bold": True,
+    }
+    ppr_extra = spacing_xml(line=360, before=0, after=0) + indent_xml(left=0, first_line=0)
+    if keep_next:
+        ppr_extra += "<w:keepNext/>"
+    return paragraph_with_inline_math_xml(
+        text,
+        style=style,
+        align="center",
+        ppr_extra=ppr_extra,
+        run_kwargs=run_kwargs,
+        math_converter=math_converter,
+        reference_anchors=reference_anchors,
+    )
+
+
+def reference_paragraph_xml(text: str, reference_anchors: dict[str, str] | None = None) -> str:
+    run_kwargs = {
+        "font_ascii": "Times New Roman",
+        "font_hansi": "Times New Roman",
+        "font_eastasia": "宋体",
+        "size": 21,
+    }
+    match = re.match(r"^\[(\d+)\]\s*(.*)$", text)
+    if not match:
+        return paragraph_with_inline_math_xml(
+            text,
+            style=STYLE_REFERENCE,
+            ppr_extra=spacing_xml(line=360) + indent_xml(left=420, hanging=420),
+            run_kwargs=run_kwargs,
+            reference_anchors=reference_anchors,
+        )
+
+    ref_id, rest = match.groups()
+    anchor = reference_anchors.get(ref_id, reference_bookmark_name(ref_id)) if reference_anchors else reference_bookmark_name(ref_id)
+    bookmark_id = reference_bookmark_id(ref_id)
+    runs = [
+        f'<w:bookmarkStart w:id="{bookmark_id}" w:name="{escape(anchor)}"/>',
+        run_text_xml(f"[{ref_id}] ", **run_kwargs),
+        f'<w:bookmarkEnd w:id="{bookmark_id}"/>',
+    ]
+    if rest:
+        runs.extend(text_runs(rest, run_kwargs=run_kwargs))
+    return paragraph_xml(
+        style=STYLE_REFERENCE,
+        runs=runs,
+        ppr_extra=spacing_xml(line=360) + indent_xml(left=420, hanging=420),
+    )
+
+
 def body_style_profile() -> dict[str, object]:
+    styles = xju_style_roles()
     return {
-        "title": STYLE_HEADING_1,
-        "heading1": STYLE_HEADING_1,
-        "heading2": STYLE_HEADING_2,
-        "heading3": STYLE_HEADING_3,
-        "normal": STYLE_BODY,
-        "quote": STYLE_QUOTE,
-        "code": STYLE_CODE_BLOCK,
+        "title": styles.require("body.title"),
+        "heading1": styles.require("body.heading.level1"),
+        "heading2": styles.require("body.heading.level2"),
+        "heading3": styles.require("body.heading.level3"),
+        "normal": styles.require("body.normal"),
+        "quote": styles.require("quote.block"),
+        "code": styles.require("code.block"),
         "code_ppr_extra": '<w:outlineLvl w:val="9"/>',
-        "math": STYLE_MATH_BLOCK,
-        "table": STYLE_TABLE_TEXT,
+        "math": styles.require("math.block"),
+        "table": styles.require("table.cell"),
         "normal_first_line_chars": 200,
         "normal_first_line": 480,
         "normal_ppr_extra": '<w:widowControl w:val="0"/>' + spacing_xml(line=360),
@@ -108,11 +213,13 @@ def body_style_profile() -> dict[str, object]:
             "font_eastasia": "宋体",
             "size": 24,
         },
-        "caption": STYLE_CAPTION,
-        "skip_reference_notes": True,
+        "caption": styles.require("caption.default"),
         "strip_heading_numbers": True,
         "heading_builder": heading_paragraph_xml,
         "acknowledgement_heading_builder": acknowledgement_heading_paragraph_xml,
+        "caption_builder": caption_paragraph_xml,
+        "reference_builder": reference_paragraph_xml,
+        "table_builder": table_xml,
         "appendix_heading_normalizer": normalize_appendix_heading,
         "appendix_reference_normalizer": normalize_appendix_references,
         "section_pr_builder": native_sect_pr_xml,

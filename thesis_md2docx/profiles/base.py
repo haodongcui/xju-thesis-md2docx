@@ -3,22 +3,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from ..body_rules import BodyParseRules
+from ..layout import DocumentLayout, DocxPackageParts, FrontMatterSpec, SectionSpec, StyleBundle
 from ..math.converter import MathConverter
 from ..media import MediaManager
-from ..ooxml.header_footer import empty_footer_xml, header_xml, page_footer_xml
 from ..ooxml.parts import (
     app_xml,
     content_types_xml,
     core_xml,
     document_rels_xml,
     document_xml,
-    font_table_xml,
-    native_sect_pr_xml,
-    numbering_xml,
     rels_xml,
-    settings_xml,
-    styles_xml,
 )
+from ..styles import StyleCatalog, StyleRoleMap
 
 
 @dataclass(frozen=True)
@@ -45,6 +42,27 @@ class ThesisProfile:
     def body_style_profile(self) -> dict[str, object]:
         return {}
 
+    def body_parse_rules(self) -> BodyParseRules:
+        return BodyParseRules()
+
+    def package_parts(self) -> DocxPackageParts:
+        return DocxPackageParts()
+
+    def document_layout(self) -> DocumentLayout:
+        raise NotImplementedError(f"{self.name} profile must implement document_layout()")
+
+    def front_matter_spec(self) -> FrontMatterSpec:
+        raise NotImplementedError(f"{self.name} profile must implement front_matter_spec()")
+
+    def style_catalog(self) -> StyleCatalog:
+        return StyleCatalog()
+
+    def style_roles(self) -> StyleRoleMap:
+        return StyleRoleMap()
+
+    def style_bundle(self) -> StyleBundle:
+        raise NotImplementedError(f"{self.name} profile must implement style_bundle()")
+
     def build_document(
         self,
         text: str,
@@ -66,13 +84,18 @@ class ThesisProfile:
         page_number_format: str | None = None,
         page_number_start: int | None = None,
     ) -> str:
-        return native_sect_pr_xml(
-            with_header=with_header,
-            footer_kind=footer_kind,
-            section_type=section_type,
-            page_number_format=page_number_format,
-            page_number_start=page_number_start,
+        return self.section_from_spec(
+            SectionSpec(
+                with_header=with_header,
+                footer_kind=footer_kind,
+                section_type=section_type,
+                page_number_format=page_number_format,
+                page_number_start=page_number_start,
+            )
         )
+
+    def section_from_spec(self, spec: SectionSpec) -> str:
+        raise NotImplementedError(f"{self.name} profile must implement section_from_spec()")
 
     def content_types_xml(self, image_extensions: set[str] | None = None) -> str:
         return content_types_xml(image_extensions)
@@ -90,25 +113,25 @@ class ThesisProfile:
         return document_xml(elements, sect_pr=sect_pr)
 
     def styles_xml(self) -> str:
-        return styles_xml()
+        return self.style_bundle().styles_xml
 
     def numbering_xml(self) -> str:
-        return numbering_xml()
+        return self.style_bundle().numbering_xml
 
     def settings_xml(self) -> str:
-        return settings_xml()
+        return self.style_bundle().settings_xml
 
     def font_table_xml(self) -> str:
-        return font_table_xml()
+        return self.style_bundle().font_table_xml
 
     def header_xml(self) -> str:
-        return header_xml()
+        return self.style_bundle().header_xml
 
     def empty_footer_xml(self) -> str:
-        return empty_footer_xml()
+        return self.style_bundle().empty_footer_xml
 
     def page_footer_xml(self) -> str:
-        return page_footer_xml()
+        return self.style_bundle().page_footer_xml
 
     def document_rels_xml(self, media_manager: MediaManager | None = None) -> str:
         return document_rels_xml(media_manager)

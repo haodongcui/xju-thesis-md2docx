@@ -216,10 +216,38 @@ Word 后端不需要设置 `WINWORD.EXE` 绝对路径。LibreOffice 更通用，
 
 通用能力放在公共层；学校特有的封面、前置页、标题、页眉页脚、附录编号等放入 profile。
 
+当前转换链路：
+
+```text
+Markdown
+  -> front matter + body text
+  -> body IR blocks
+  -> profile rules/layout/styles
+  -> OOXML package
+  -> DOCX
+  -> optional PDF backend
+```
+
+内置 XJU profile 主要由这些文件组成：
+
+```text
+thesis_md2docx/profiles/xju_undergraduate_thesis/
+├── profile.py          # profile 入口和对外能力
+├── document.py         # 封面、声明、摘要、目录、正文的装配顺序
+├── frontmatter.py      # XJU 封面、任务书、摘要、声明等前置页渲染
+├── body.py             # 正文标题、参考文献、图表题、附录等规则
+├── styles.py           # Word 样式目录、样式角色、numbering/font table
+├── header_footer.py    # XJU 页眉页脚
+└── format_requirements/
+```
+
+如果只是适配另一个学校或学位，优先复制这个 profile 目录并调整规则，不需要改 Markdown 解析、DOCX 打包或 PDF 后端。
+
 ## 文档
 
 - [docs/usage.md](docs/usage.md)：Markdown 写作约定。
 - [docs/backends.md](docs/backends.md)：DOCX 转 PDF 后端、环境变量和排查。
+- [docs/profiles.md](docs/profiles.md)：学校/学位论文 profile 扩展方式和 AST/IR 说明。
 - [example/README.md](example/README.md)：示例文件说明。
 - [CONTRIBUTING.md](CONTRIBUTING.md)：开发和提交检查。
 - [skill/SKILL.md](skill/SKILL.md)：面向 agent 的 skill 入口。
@@ -254,8 +282,9 @@ Thesis-md2docx/
 │   │   └── xju_undergraduate_thesis/format_requirements/
 │   ├── pdf/                    # DOCX -> PDF 后端
 │   ├── math/                   # LaTeX -> OMML 公式转换
-│   ├── builders/               # 文档结构构建
-│   └── ooxml/                  # OOXML 渲染
+│   ├── styles/                 # 结构化 Word 样式定义和校验
+│   ├── builders/               # 通用正文 IR -> OOXML 构建
+│   └── ooxml/                  # 通用 OOXML 元素和包部件
 ├── docs/
 ├── example/
 ├── skill/                      # Agent skill

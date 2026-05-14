@@ -5,7 +5,6 @@ from .paragraphs import (
     add_page_break_before_paragraph_xml,
     add_section_to_paragraph_xml,
     formatted_paragraph_xml,
-    is_caption_paragraph,
     math_paragraph_xml,
     page_break_xml,
     paragraph_with_inline_math_xml,

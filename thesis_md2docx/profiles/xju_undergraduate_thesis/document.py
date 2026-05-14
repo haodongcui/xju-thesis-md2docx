@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ...builders.document import build_document_elements
-from ...builders.elements import (
+from .frontmatter import (
     build_blank_paragraph,
     build_body_paragraph,
     build_cover_elements,
@@ -40,28 +40,19 @@ def build_document(
     media_manager: MediaManager | None = None,
 ) -> tuple[list[str], str, str]:
     markdown_title, front_sections, body_text = parse_markdown_document(text)
-    cover_info = parse_cover_info(front_sections.get("封面信息", ""))
-    thesis_title = cover_info.get("论文题目") or markdown_title or "新疆大学本科毕业论文"
+    front_spec = thesis_profile.front_matter_spec()
+    cover_info = parse_cover_info(front_sections.get(front_spec.cover_info_key, ""))
+    thesis_title = cover_info.get("论文题目") or markdown_title or front_spec.default_title
     profile = thesis_profile.body_style_profile()
+    layout = thesis_profile.document_layout()
 
     # Keep the cover and its blank verso page in an empty-footer section. The
     # second page break carries the section properties, so the declaration starts
     # on physical page 3 while Roman numbering still starts at I.
-    cover_sect = thesis_profile.section_pr_xml(with_header=True, footer_kind="empty", section_type="continuous")
-    front_sect = thesis_profile.section_pr_xml(
-        with_header=True,
-        footer_kind="page",
-        section_type="nextPage",
-        page_number_format="upperRoman",
-        page_number_start=1,
-    )
-    body_start_sect = thesis_profile.section_pr_xml(
-        with_header=True,
-        footer_kind="page",
-        page_number_format="decimal",
-        page_number_start=1,
-    )
-    body_continue_sect = thesis_profile.section_pr_xml(with_header=True, footer_kind="page")
+    cover_sect = thesis_profile.section_from_spec(layout.cover)
+    front_sect = thesis_profile.section_from_spec(layout.front_matter)
+    body_start_sect = thesis_profile.section_from_spec(layout.body_start)
+    body_continue_sect = thesis_profile.section_from_spec(layout.body_continue)
 
     elements: list[str] = []
     elements.extend(
@@ -75,9 +66,9 @@ def build_document(
     elements.append(page_break_xml())
     elements.append(add_section_to_paragraph_xml(page_break_xml(), cover_sect))
 
-    declaration = front_sections.get("声明", "").strip()
+    declaration = front_sections.get(front_spec.declaration_key or "", "").strip()
     if declaration:
-        elements.append(build_front_heading("声  明", statement=True))
+        elements.append(build_front_heading(front_spec.declaration_title, statement=True))
         statement_paragraphs, author_value, date_value = split_statement_content(declaration)
         for paragraph in statement_paragraphs:
             elements.append(
@@ -110,13 +101,16 @@ def build_document(
         elements.append(build_statement_signature_paragraph("签字日期：", date_value, is_date=True))
         elements.append(page_break_xml())
 
-    taskbook = front_sections.get("任务书", "").strip()
+    taskbook = front_sections.get(front_spec.taskbook_key or "", "").strip()
     if taskbook:
         elements.extend(build_taskbook_elements(taskbook, cover_info))
 
-    cn_abstract, cn_keywords = extract_abstract_and_keywords(front_sections.get("摘要", ""), "关键词：")
+    cn_abstract, cn_keywords = extract_abstract_and_keywords(
+        front_sections.get(front_spec.cn_abstract_key or "", ""),
+        front_spec.cn_keyword_prefix,
+    )
     if cn_abstract or cn_keywords:
-        elements.append(build_front_heading("摘  要", page_break_before=bool(taskbook)))
+        elements.append(build_front_heading(front_spec.cn_abstract_title, page_break_before=bool(taskbook)))
         for paragraph in cn_abstract:
             elements.append(
                 build_body_paragraph(
@@ -131,9 +125,12 @@ def build_document(
             elements.append(keyword_paragraph)
         elements.append(page_break_xml())
 
-    en_abstract, en_keywords = extract_abstract_and_keywords(front_sections.get("ABSTRACT", ""), "KEY WORDS:")
+    en_abstract, en_keywords = extract_abstract_and_keywords(
+        front_sections.get(front_spec.en_abstract_key or "", ""),
+        front_spec.en_keyword_prefix,
+    )
     if en_abstract or en_keywords:
-        elements.append(build_front_heading("ABSTRACT", english=True))
+        elements.append(build_front_heading(front_spec.en_abstract_title, english=True))
         for paragraph in en_abstract:
             elements.append(
                 build_body_paragraph(
@@ -149,12 +146,14 @@ def build_document(
             elements.append(keyword_paragraph)
         elements.append(page_break_xml())
 
-    elements.append(build_front_heading("目  录", toc=True))
-    elements.append(add_section_to_paragraph_xml(toc_field_paragraph_xml(), front_sect))
+    elements.append(build_front_heading(front_spec.toc_title, toc=True))
+    toc_style = thesis_profile.style_roles().require("toc.field")
+    elements.append(add_section_to_paragraph_xml(toc_field_paragraph_xml(style=toc_style), front_sect))
 
     body_elements, body_has_section_breaks = build_document_elements(
         body_text,
         profile=profile,
+        rules=thesis_profile.body_parse_rules(),
         treat_first_heading_as_title=False,
         math_converter=math_converter,
         reference_anchors=reference_anchors,
