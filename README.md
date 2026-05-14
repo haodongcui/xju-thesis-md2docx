@@ -85,6 +85,25 @@ py -3 md2docx.py docx example\thesis-demo.md example\thesis-demo.docx --profile 
 
 Windows 对应 `export-example.ps1` 或 `export-example.cmd`。
 
+一键脚本会依次生成：
+
+```text
+example/thesis-demo.docx
+example/thesis-demo.pdf
+example/pages/page-*.png
+```
+
+默认 PDF 后端为 `auto`。可以用环境变量切换：
+
+```bash
+THESIS_DOCX2PDF_BACKEND=word ./export-example.sh
+THESIS_DOCX2PDF_BACKEND=libreoffice ./export-example.sh
+```
+
+分页图片依赖 `pdftoppm`。Linux / WSL 可通过 `sudo apt-get install -y poppler-utils` 安装；Windows 需要安装 Poppler 并把 `pdftoppm` 加入 PATH。
+
+分页图片默认 120 DPI，可用 `THESIS_PDF_PREVIEW_DPI=160 ./export-example.sh` 调整。
+
 ## 输出文件约定
 
 CLI 不强制输出目录。输出路径由命令参数决定；不传输出路径时，默认在 Markdown 同目录生成同名 `.docx`。
@@ -100,7 +119,7 @@ paper/
 └── pages/          # PDF 分页图片
 ```
 
-示例目录也采用这个约定：`example/thesis-demo.md` 是源稿，`example/thesis-demo.docx` 和 `example/thesis-demo.pdf` 是导出产物，`example/pages/` 可放 PDF 分页图片。
+示例目录也采用这个约定：`example/thesis-demo.md` 是源稿，`example/thesis-demo.docx` 和 `example/thesis-demo.pdf` 是导出产物，`example/pages/` 放 PDF 分页图片。
 
 如果同一篇论文需要保留多个版本、多个后端 PDF 或大量中间产物，也可以自行改成 `word/`、`pdf/` 等子目录；工具本身不限制。
 

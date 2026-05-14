@@ -31,6 +31,23 @@ Windows PowerShell：
 .\export-example.ps1
 ```
 
+一键脚本会生成：
+
+- `example/thesis-demo.docx`
+- `example/thesis-demo.pdf`
+- `example/pages/page-*.png`
+
+默认 PDF 后端是 `auto`。如需指定后端：
+
+```bash
+THESIS_DOCX2PDF_BACKEND=word ./export-example.sh
+THESIS_DOCX2PDF_BACKEND=libreoffice ./export-example.sh
+```
+
+分页图片需要 `pdftoppm`。Linux / WSL 可安装 `poppler-utils`；Windows 需要安装 Poppler 并把 `pdftoppm` 加入 PATH。
+
+分页图片默认 120 DPI，可用 `THESIS_PDF_PREVIEW_DPI=160 ./export-example.sh` 调整。
+
 如果当前环境是 WSL，且 Windows 侧安装了 Microsoft Word，可以继续用高保真 Word 后端导出 PDF：
 
 ```bash
@@ -49,7 +66,7 @@ python3 md2docx.py pdf example/thesis-demo.docx example/thesis-demo.pdf --backen
 python3 md2docx.py all example/thesis-demo.md example/thesis-demo.docx example/thesis-demo.pdf --profile xju-undergraduate-thesis --backend auto
 ```
 
-PDF 生成后，可以渲染分页图片到 `pages/`：
+PDF 生成后，也可以手动重新渲染分页图片到 `pages/`：
 
 ```bash
 mkdir -p example/pages

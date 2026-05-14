@@ -47,3 +47,9 @@ Use `pdftoppm` to render PDF pages into PNG for visual checking:
 mkdir -p pages
 pdftoppm -png -f 1 -l 6 -r 120 thesis.pdf pages/page
 ```
+
+The repository example launchers generate page images automatically after PDF export:
+
+```bash
+./export-example.sh
+```

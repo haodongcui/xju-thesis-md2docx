@@ -26,6 +26,8 @@ python3 -m pytest tests
 python3 md2docx.py doctor --backend auto
 ```
 
+`./export-example.sh` 会生成 DOCX、PDF 和分页图片，因此需要可用的 PDF 后端以及 `pdftoppm`。如果只改了非 PDF 相关代码且当前机器没有 PDF 后端，可至少运行前两条命令和 `python3 md2docx.py doctor`。
+
 如果修改了公式转换或 PDF 预览相关代码，还建议运行：
 
 ```bash

@@ -57,8 +57,9 @@ git clone https://github.com/haodongcui/Thesis-md2docx.git
    bash scripts/export_pdf.sh thesis.docx thesis.pdf word
    ```
 
-7. Use the Word backend as the final layout baseline when available. Use LibreOffice for quick preview only.
-8. Remind the user that final Word/WPS inspection is still required for TOC refresh, pagination, figures, tables, formulas, and references.
+7. For the repository example, `./export-example.sh` / `.ps1` / `.cmd` should produce `example/thesis-demo.docx`, `example/thesis-demo.pdf`, and `example/pages/page-*.png`.
+8. Use the Word backend as the final layout baseline when available. Use LibreOffice for quick preview only.
+9. Remind the user that final Word/WPS inspection is still required for TOC refresh, pagination, figures, tables, formulas, and references.
 
 ## References
 
