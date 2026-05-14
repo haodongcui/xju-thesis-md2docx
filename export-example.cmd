@@ -9,19 +9,20 @@ if exist ".venv\Scripts\activate.bat" (
 
 if "%THESIS_DOCX2PDF_BACKEND%"=="" set "THESIS_DOCX2PDF_BACKEND=auto"
 if "%THESIS_PDF_PREVIEW_DPI%"=="" set "THESIS_PDF_PREVIEW_DPI=120"
+if not exist "example\output\pages" mkdir "example\output\pages"
 
 where py >nul 2>nul
 if %errorlevel%==0 (
-  py -3 "md2docx.py" all "example\thesis-demo.md" "example\thesis-demo.docx" "example\thesis-demo.pdf" --profile xju-undergraduate-thesis --backend "%THESIS_DOCX2PDF_BACKEND%"
+  py -3 "md2docx.py" all "example\thesis-demo.md" "example\output\thesis-demo.docx" "example\output\thesis-demo.pdf" --profile xju-undergraduate-thesis --backend "%THESIS_DOCX2PDF_BACKEND%"
 ) else (
-  python "md2docx.py" all "example\thesis-demo.md" "example\thesis-demo.docx" "example\thesis-demo.pdf" --profile xju-undergraduate-thesis --backend "%THESIS_DOCX2PDF_BACKEND%"
+  python "md2docx.py" all "example\thesis-demo.md" "example\output\thesis-demo.docx" "example\output\thesis-demo.pdf" --profile xju-undergraduate-thesis --backend "%THESIS_DOCX2PDF_BACKEND%"
 )
 
 set STATUS=%errorlevel%
 if not %STATUS%==0 goto done
 
-echo Generated: %cd%\example\thesis-demo.docx
-echo Generated: %cd%\example\thesis-demo.pdf
+echo Generated: %cd%\example\output\thesis-demo.docx
+echo Generated: %cd%\example\output\thesis-demo.pdf
 
 where pdftoppm >nul 2>nul
 if not %errorlevel%==0 (
@@ -30,11 +31,10 @@ if not %errorlevel%==0 (
   goto done
 )
 
-if not exist "example\pages" mkdir "example\pages"
-del /q "example\pages\page*.png" >nul 2>nul
-pdftoppm -png -r "%THESIS_PDF_PREVIEW_DPI%" "example\thesis-demo.pdf" "example\pages\page"
+del /q "example\output\pages\page*.png" >nul 2>nul
+pdftoppm -png -r "%THESIS_PDF_PREVIEW_DPI%" "example\output\thesis-demo.pdf" "example\output\pages\page"
 set STATUS=%errorlevel%
-if %STATUS%==0 echo Generated PDF pages: %cd%\example\pages\page-*.png
+if %STATUS%==0 echo Generated PDF pages: %cd%\example\output\pages\page-*.png
 
 :done
 popd

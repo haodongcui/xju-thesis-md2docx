@@ -11,19 +11,22 @@ if (Test-Path $VenvActivate) {
 $PythonLauncher = Get-Command py -ErrorAction SilentlyContinue
 $PdfBackend = if ($env:THESIS_DOCX2PDF_BACKEND) { $env:THESIS_DOCX2PDF_BACKEND } else { "auto" }
 $PreviewDpi = if ($env:THESIS_PDF_PREVIEW_DPI) { $env:THESIS_PDF_PREVIEW_DPI } else { "120" }
+$OutputDir = Join-Path $Root "example\output"
+$PagesDir = Join-Path $OutputDir "pages"
+New-Item -ItemType Directory -Force -Path $PagesDir | Out-Null
 
 if ($PythonLauncher) {
     & py -3 "md2docx.py" all `
         "example\thesis-demo.md" `
-        "example\thesis-demo.docx" `
-        "example\thesis-demo.pdf" `
+        "example\output\thesis-demo.docx" `
+        "example\output\thesis-demo.pdf" `
         --profile xju-undergraduate-thesis `
         --backend $PdfBackend
 } else {
     & python "md2docx.py" all `
         "example\thesis-demo.md" `
-        "example\thesis-demo.docx" `
-        "example\thesis-demo.pdf" `
+        "example\output\thesis-demo.docx" `
+        "example\output\thesis-demo.pdf" `
         --profile xju-undergraduate-thesis `
         --backend $PdfBackend
 }
@@ -32,8 +35,8 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-Write-Host "Generated: $Root\example\thesis-demo.docx"
-Write-Host "Generated: $Root\example\thesis-demo.pdf"
+Write-Host "Generated: $Root\example\output\thesis-demo.docx"
+Write-Host "Generated: $Root\example\output\thesis-demo.pdf"
 
 $PdfToPpm = Get-Command pdftoppm -ErrorAction SilentlyContinue
 if (-not $PdfToPpm) {
@@ -41,12 +44,10 @@ if (-not $PdfToPpm) {
     exit 1
 }
 
-$PagesDir = Join-Path $Root "example\pages"
-New-Item -ItemType Directory -Force -Path $PagesDir | Out-Null
 Get-ChildItem -Path $PagesDir -Filter "page*.png" -File -ErrorAction SilentlyContinue | Remove-Item -Force
-& $PdfToPpm.Source -png -r $PreviewDpi "example\thesis-demo.pdf" "example\pages\page"
+& $PdfToPpm.Source -png -r $PreviewDpi "example\output\thesis-demo.pdf" "example\output\pages\page"
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-Write-Host "Generated PDF pages: $Root\example\pages\page-*.png"
+Write-Host "Generated PDF pages: $Root\example\output\pages\page-*.png"

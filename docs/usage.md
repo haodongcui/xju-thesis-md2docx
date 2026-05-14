@@ -4,18 +4,19 @@
 
 ## 输出文件建议
 
-CLI 不强制输出目录。单篇论文或示例建议让 Markdown、DOCX 和 PDF 同名同目录，资源和预览图放子目录：
+CLI 不强制输出目录。建议源稿和生成物分开，Markdown 与图片放在外层，DOCX、PDF 和分页图放入 `output/`：
 
 ```text
 paper/
 ├── thesis.md
-├── thesis.docx
-├── thesis.pdf
 ├── img/
-└── pages/
+└── output/
+    ├── thesis.docx
+    ├── thesis.pdf
+    └── pages/
 ```
 
-Markdown 和 `img/` 是源文件；DOCX、PDF 和 `pages/` 是导出产物。示例目录也按这个约定组织。
+Markdown 和 `img/` 是源文件；`output/` 是可删除、可重建的导出产物目录。示例目录也按这个约定组织。
 
 ## 基本结构
 

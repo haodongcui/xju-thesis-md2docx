@@ -17,23 +17,26 @@ fi
 
 PDF_BACKEND="${THESIS_DOCX2PDF_BACKEND:-auto}"
 PREVIEW_DPI="${THESIS_PDF_PREVIEW_DPI:-120}"
+OUTPUT_DIR="example/output"
+PAGES_DIR="$OUTPUT_DIR/pages"
+
+mkdir -p "$PAGES_DIR"
 
 "$PYTHON" md2docx.py all \
   example/thesis-demo.md \
-  example/thesis-demo.docx \
-  example/thesis-demo.pdf \
+  "$OUTPUT_DIR/thesis-demo.docx" \
+  "$OUTPUT_DIR/thesis-demo.pdf" \
   --profile xju-undergraduate-thesis \
   --backend "$PDF_BACKEND"
 
-echo "Generated: $ROOT/example/thesis-demo.docx"
-echo "Generated: $ROOT/example/thesis-demo.pdf"
+echo "Generated: $ROOT/$OUTPUT_DIR/thesis-demo.docx"
+echo "Generated: $ROOT/$OUTPUT_DIR/thesis-demo.pdf"
 
 if ! command -v pdftoppm >/dev/null 2>&1; then
   echo "pdftoppm not found. Install poppler-utils to render PDF pages." >&2
   exit 1
 fi
 
-mkdir -p example/pages
-find example/pages -type f -name 'page*.png' -delete
-pdftoppm -png -r "$PREVIEW_DPI" example/thesis-demo.pdf example/pages/page
-echo "Generated PDF pages: $ROOT/example/pages/page-*.png"
+find "$PAGES_DIR" -type f -name 'page*.png' -delete
+pdftoppm -png -r "$PREVIEW_DPI" "$OUTPUT_DIR/thesis-demo.pdf" "$PAGES_DIR/page"
+echo "Generated PDF pages: $ROOT/$PAGES_DIR/page-*.png"

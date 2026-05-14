@@ -7,15 +7,16 @@
 ```text
 example/
 ├── thesis-demo.md
-├── thesis-demo.docx
-├── thesis-demo.pdf
 ├── img/
 │   ├── benchmark4_summary_bars.png
 │   └── benchmark4_eval_overview.png
-└── pages/
+└── output/
+    ├── thesis-demo.docx
+    ├── thesis-demo.pdf
+    └── pages/
 ```
 
-`thesis-demo.md` 是示例主稿，`img/` 存放示例图片。`thesis-demo.docx`、`thesis-demo.pdf` 和 `pages/` 属于导出结果，默认不会提交到 Git。
+`thesis-demo.md` 是示例主稿，`img/` 存放示例图片。`output/` 属于导出结果目录，默认不会提交到 Git。
 
 ## 运行
 
@@ -33,9 +34,9 @@ Windows PowerShell：
 
 一键脚本会生成：
 
-- `example/thesis-demo.docx`
-- `example/thesis-demo.pdf`
-- `example/pages/page-*.png`
+- `example/output/thesis-demo.docx`
+- `example/output/thesis-demo.pdf`
+- `example/output/pages/page-*.png`
 
 默认 PDF 后端是 `auto`。如需指定后端：
 
@@ -51,26 +52,26 @@ THESIS_DOCX2PDF_BACKEND=libreoffice ./export-example.sh
 如果当前环境是 WSL，且 Windows 侧安装了 Microsoft Word，可以继续用高保真 Word 后端导出 PDF：
 
 ```bash
-python3 md2docx.py pdf example/thesis-demo.docx example/thesis-demo.pdf --backend word
+python3 md2docx.py pdf example/output/thesis-demo.docx example/output/thesis-demo.pdf --backend word
 ```
 
 如果没有 Word，也可以使用 LibreOffice 后端做快速预览：
 
 ```bash
-python3 md2docx.py pdf example/thesis-demo.docx example/thesis-demo.pdf --backend libreoffice
+python3 md2docx.py pdf example/output/thesis-demo.docx example/output/thesis-demo.pdf --backend libreoffice
 ```
 
 也可以一步生成 DOCX 和 PDF：
 
 ```bash
-python3 md2docx.py all example/thesis-demo.md example/thesis-demo.docx example/thesis-demo.pdf --profile xju-undergraduate-thesis --backend auto
+python3 md2docx.py all example/thesis-demo.md example/output/thesis-demo.docx example/output/thesis-demo.pdf --profile xju-undergraduate-thesis --backend auto
 ```
 
-PDF 生成后，也可以手动重新渲染分页图片到 `pages/`：
+PDF 生成后，也可以手动重新渲染分页图片到 `output/pages/`：
 
 ```bash
-mkdir -p example/pages
-pdftoppm -png -r 120 example/thesis-demo.pdf example/pages/page
+mkdir -p example/output/pages
+pdftoppm -png -r 120 example/output/thesis-demo.pdf example/output/pages/page
 ```
 
 ## 示例覆盖内容
@@ -102,5 +103,5 @@ pdftoppm -png -r 120 example/thesis-demo.pdf example/pages/page
 2. 保留正文标题的编号结构，例如 `# 1 绪论`、`## 1.1 研究背景`。
 3. 把图片放到 Markdown 同级的 `img/` 目录，并使用相对路径引用。
 4. 参考文献条目放在 `# 参考文献` 之后，致谢放在 `# 致谢` 之后。
-5. 让输出文件与 Markdown 同名，例如 `thesis-demo.md`、`thesis-demo.docx`、`thesis-demo.pdf`。
+5. 把生成物放入 `output/`，例如 `output/thesis-demo.docx`、`output/thesis-demo.pdf`。
 6. 每次较大修改后重新导出 DOCX，并在 Word / WPS 中刷新目录和检查分页。

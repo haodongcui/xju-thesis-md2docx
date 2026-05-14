@@ -57,7 +57,7 @@ git clone https://github.com/haodongcui/Thesis-md2docx.git
    bash scripts/export_pdf.sh thesis.docx thesis.pdf word
    ```
 
-7. For the repository example, `./export-example.sh` / `.ps1` / `.cmd` should produce `example/thesis-demo.docx`, `example/thesis-demo.pdf`, and `example/pages/page-*.png`.
+7. For the repository example, `./export-example.sh` / `.ps1` / `.cmd` should produce `example/output/thesis-demo.docx`, `example/output/thesis-demo.pdf`, and `example/output/pages/page-*.png`.
 8. Use the Word backend as the final layout baseline when available. Use LibreOffice for quick preview only.
 9. Remind the user that final Word/WPS inspection is still required for TOC refresh, pagination, figures, tables, formulas, and references.
 
@@ -71,6 +71,6 @@ git clone https://github.com/haodongcui/Thesis-md2docx.git
 
 - Do not hand-edit generated DOCX as the long-term source.
 - Fix Markdown, profile code, or exporter code instead.
-- Keep generated DOCX/PDF files and preview images out of Git; for a single paper, prefer sibling files such as `thesis.md`, `thesis.docx`, `thesis.pdf`, with PDF page images in `pages/`.
+- Keep generated DOCX/PDF files and preview images out of Git; prefer source files at the paper root and generated files under `output/`.
 - For Xinjiang University undergraduate thesis output, use profile `xju-undergraduate-thesis`.
 - When comparing output, focus first on page sections, headings, body indentation, captions, formulas, references, and PDF pagination.

@@ -48,7 +48,7 @@ mkdir -p pages
 pdftoppm -png -f 1 -l 6 -r 120 thesis.pdf pages/page
 ```
 
-The repository example launchers generate page images automatically after PDF export:
+The repository example launchers generate DOCX, PDF, and page images under `example/output/` automatically:
 
 ```bash
 ./export-example.sh

@@ -32,14 +32,14 @@ python3 md2docx.py doctor --backend auto
 
 ```bash
 python3 md2docx.py doctor --backend word
-python3 md2docx.py pdf example/thesis-demo.docx example/thesis-demo.pdf --backend word
+python3 md2docx.py pdf example/output/thesis-demo.docx example/output/thesis-demo.pdf --backend word
 ```
 
 如果修改了 LibreOffice 后端，还建议运行：
 
 ```bash
 python3 md2docx.py doctor --backend libreoffice
-python3 md2docx.py pdf example/thesis-demo.docx example/thesis-demo.pdf --backend libreoffice
+python3 md2docx.py pdf example/output/thesis-demo.docx example/output/thesis-demo.pdf --backend libreoffice
 ```
 
 ## 提交内容
@@ -52,9 +52,9 @@ python3 md2docx.py pdf example/thesis-demo.docx example/thesis-demo.pdf --backen
 
 不建议提交：
 
-- `example/*.docx`；
-- `example/*.pdf`；
-- `example/pages/*.png`；
+- `example/output/*.docx`；
+- `example/output/*.pdf`；
+- `example/output/pages/*.png`；
 - `example/preview/`；
 - `thesis_md2docx/math/latex2omml_node/node_modules/`；
 - 本地临时文件、缓存和手工备份文件。
